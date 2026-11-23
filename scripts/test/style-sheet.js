@@ -11,6 +11,7 @@ const srv = http.createServer((req, res) => {
 });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const STYLES = ['glass', 'bold', 'list', 'photo', 'sale', 'festive', 'magazine', 'chat', 'minimal'];
+const NAMES = ['質感玻璃', '大字主視覺', '重點清單卡', '照片疊字', '限時優惠', '節慶禮讚', '雜誌封面', '對話泡泡', '極簡留白'];
 (async () => {
   await new Promise(r => srv.listen(0, r)); const base = `http://localhost:${srv.address().port}/`;
   const prof = fs.mkdtempSync(path.join(require('os').tmpdir(), 'edge-'));
@@ -37,8 +38,8 @@ const STYLES = ['glass', 'bold', 'list', 'photo', 'sale', 'festive', 'magazine',
       await Promise.all(rows.flat().map(i=>i.decode()));
       const W=rows[0].reduce((a,i)=>a+i.width*rowH/i.height+gap,gap+150);
       const out=document.createElement('canvas'); out.width=W; out.height=rows.length*(rowH+gap)+gap; const x=out.getContext('2d');
-      x.fillStyle='#444'; x.fillRect(0,0,out.width,out.height); x.fillStyle='#fff'; x.font='700 24px sans-serif';
-      rows.forEach((r,ri)=>{ x.fillText(${JSON.stringify(STYLES)}[ri], 12, gap+ri*(rowH+gap)+rowH/2); let xx=gap+150; r.forEach(i=>{const w=i.width*rowH/i.height; x.drawImage(i,xx,gap+ri*(rowH+gap),w,rowH); xx+=w+gap;}); });
+      x.fillStyle='#444'; x.fillRect(0,0,out.width,out.height); x.fillStyle='#fff'; x.font='700 26px "Microsoft JhengHei",sans-serif';
+      rows.forEach((r,ri)=>{ x.fillText(${JSON.stringify(NAMES)}[ri], 14, gap+ri*(rowH+gap)+rowH/2); let xx=gap+150; r.forEach(i=>{const w=i.width*rowH/i.height; x.drawImage(i,xx,gap+ri*(rowH+gap),w,rowH); xx+=w+gap;}); });
       return out.toDataURL('image/png'); })()`);
     fs.writeFileSync(path.join(OUT, name), Buffer.from(data.split(',')[1], 'base64')); console.log('🖼 ', name);
   };
