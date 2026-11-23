@@ -918,7 +918,7 @@ const EXTRA = {
     if (d.sub) wrap(ctx,d.sub,textW).slice(0,2).forEach(l=>{ ctx.fillText(l,p2,y); y+=ss*1.55; });
     const cs=Math.round(W*(wide?0.02:0.026)), stopY = H - p2 - cs*2.6;
     if (d.points.length){ y+=ss*0.6; ctx.font=`500 ${Math.round(ss*0.9)}px ${FONT}`;
-      for (const l of wrap(ctx, d.points.join("　/　"), photo&&!wide ? W*0.5-p2*1.6 : textW).slice(0,3)){ if (y+ss > stopY) break; ctx.fillText(l,p2,y); y+=ss*1.45; } }
+      for (const l of wrap(ctx, d.points.join("　/　"), photo&&!wide ? W*0.5-p2*2.4 : textW).slice(0,3)){ if (y+ss > stopY) break; ctx.fillText(l,p2,y); y+=ss*1.45; } }
     if (cta){ ctx.font=`700 ${cs}px ${FONT}`; const t=cta+"  →", tw=ctx.measureText(t).width, yy=H-p2-cs;
       ctx.fillStyle=color; ctx.fillText(t,p2,yy); ctx.fillRect(p2,yy+cs*1.4,tw,Math.max(2,W*0.002)); }
   }
