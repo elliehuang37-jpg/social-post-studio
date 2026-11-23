@@ -183,11 +183,12 @@ input[type=color]{width:32px;height:32px;border:none;background:none;padding:0;c
         <div class="field"><label for="f-style">圖卡風格</label>
           <select id="f-style">
             <option value="glass">質感玻璃</option><option value="bold">大字主視覺</option><option value="list">重點清單卡</option><option value="photo">照片疊字</option>
+            <option value="sale">限時優惠</option><option value="festive">節慶禮讚</option><option value="magazine">雜誌封面</option><option value="chat">對話泡泡</option><option value="minimal">極簡留白</option>
           </select></div>
         <div class="field"><label>主色</label>
           <div class="color-row" id="swatches"></div></div>
       </div>
-      <div class="field"><label for="f-photo">產品／情境照片 <span class="hint">選填；照片疊字風格會用到，AI 也會參考</span></label>
+      <div class="field"><label for="f-photo">產品／情境照片 <span class="hint">選填；多數風格會放上照片，AI 也會參考</span></label>
         <div class="photo-drop" id="photoDrop"><img id="photoThumb" alt="" hidden><span id="photoName">拖曳照片到這裡，或</span><input type="file" id="f-photo" accept="image/png,image/jpeg,image/webp"></div>
       </div>
       <label class="check"><input type="checkbox" id="f-comply" checked><span>美妝／保健合規提醒：避免療效、誇大與絕對用語，並在文案中標出疑慮字詞</span></label>
@@ -641,6 +642,7 @@ function draw(k){
   }
 
   if (style==="glass"){ drawGlass(ctx, W, H, d, color, wide, pad, brandName, cta); return; }
+  if (EXTRA[style]){ ctx.textBaseline="top"; EXTRA[style](ctx, W, H, d, color, wide, pad, brandName, cta); return; }
 
   if (style==="list"){
     ctx.fillStyle="#FBFAF8"; ctx.fillRect(0,0,W,H);
@@ -694,7 +696,7 @@ function draw(k){
   ctx.font=`500 ${Math.round(hl.size*0.36)}px ${FONT}`; const subL = d.sub ? wrap(ctx,d.sub,maxW).slice(0,2) : [];
   const lh=hl.size*1.18, slh=hl.size*0.36*1.55;
   const block = hl.lines.length*lh + 30 + subL.length*slh;
-  let y = wide ? (H-block)/2 : Math.max(H*0.36, (H-block)/2);
+  let y = wide ? (H-block)/2 : Math.max(H*0.36, (H-block)/2, photo ? pad + Math.min(W,H)*0.4 + pad*0.4 : 0);
   ctx.font=`900 ${hl.size}px ${FONT}`; ctx.fillStyle=onC;
   hl.lines.forEach(l => { ctx.fillText(l,pad,y); y+=lh; });
   ctx.fillStyle = darkOnColor ? "#14161C" : "#FFE27A"; ctx.fillRect(pad, y+8, hl.size*1.4, 10); y+=34;
@@ -708,6 +710,219 @@ function pill(ctx, text, x, y, size, bg, fg){
   ctx.fillStyle=fg; ctx.textBaseline="middle"; ctx.fillText(text+"  →", x+size*0.8, y+h/2+1); ctx.textBaseline="top";
 }
 function drawAll(){ Object.keys(PLATFORMS).forEach(draw); }
+
+// ---------- 延伸風格：限時優惠、節慶禮讚、雜誌封面、對話泡泡、極簡留白 ----------
+const SERIF = '"Noto Serif TC","Songti TC","PMingLiU",serif';
+const GOLD = "#E2C28E", GOLD_D = "#B98B5E";
+// Google Fonts 依字元分批下載：用到還沒下載的字時先載入，載好再重畫一次
+let fontRedraw = null;
+function ensureFont(spec, text){
+  try{
+    if (!document.fonts || document.fonts.check(spec, text)) return;
+    document.fonts.load(spec, text).then(() => { clearTimeout(fontRedraw); fontRedraw = setTimeout(drawAll, 60); }).catch(()=>{});
+  }catch(e){}
+}
+function fitF(ctx, text, maxW, maxLines, start, min, weight, family){
+  ensureFont(`${weight} 40px ${family}`, text);
+  let size=start, lines;
+  do { ctx.font=`${weight} ${size}px ${family}`; lines=wrap(ctx,text,maxW); size-=4; } while (lines.length>maxLines && size>=min);
+  return { size:size+4, lines };
+}
+function rng(seed){ let a=seed>>>0; return () => { a=(a+0x6D2B79F5)>>>0; let t=a; t=Math.imul(t^t>>>15,t|1); t^=t+Math.imul(t^t>>>7,t|61); return ((t^t>>>14)>>>0)/4294967296; }; }
+function center(ctx, text, cx, y){ const w=ctx.measureText(text).width; ctx.fillText(text, cx-w/2, y); }
+function pillC(ctx, text, cx, y, size, bg, fg){ ctx.font=`700 ${size}px ${FONT}`; const w=ctx.measureText(text+"  →").width+size*1.6; pill(ctx, text, cx-w/2, y, size, bg, fg); }
+function circleImg(ctx, im, cx, cy, r, ring, lw){
+  ctx.save(); ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.clip(); coverImg(ctx,im,cx-r,cy-r,2*r,2*r); ctx.restore();
+  if (ring){ ctx.strokeStyle=ring; ctx.lineWidth=lw; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke(); }
+}
+function star(ctx, x, y, r){ ctx.beginPath(); ctx.moveTo(x,y-r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.quadraticCurveTo(x,y,x,y+r); ctx.quadraticCurveTo(x,y,x-r,y); ctx.quadraticCurveTo(x,y,x,y-r); ctx.fill(); }
+// 從活動資訊抓折扣與日期（抓不到就用大標）
+function parseOffer(){
+  const t = brief.offer || "";
+  let big = null, unit = "";
+  let m = t.match(/(\d+(?:\.\d+)?)\s*折/); if (m){ big=m[1]; unit="折"; }
+  if (!big && (m = t.match(/(\d+)\s*%/))){ big=m[1]; unit="% OFF"; }
+  if (!big && (m = t.match(/(買\s*\d+\s*送\s*\d+)/))){ big=m[1].replace(/\s+/g,""); }
+  if (!big && (m = t.match(/(滿\s*\d+)/))){ big=m[1].replace(/\s+/g,""); unit="有禮"; }
+  const dm = t.match(/(\d{1,2}\/\d{1,2})\s*[–\-~～至到]\s*(\d{1,2}\/\d{1,2})/);
+  const extra = t.replace(dm ? dm[0] : "", "").replace(m ? m[0] : "", "").replace(/^[\s，,、]+|[\s，,、]+$/g,"");
+  return { big, unit, dates: dm ? `${dm[1]}–${dm[2]}` : "", extra };
+}
+const EXTRA = {
+  // 限時優惠：主色斜紋底，超大折扣數字，日期標籤
+  sale(ctx, W, H, d, color, wide, pad, brandName, cta){
+    const onC = lum(color)>0.62 ? "#14161C" : "#FFFFFF", deep = shade(color,-0.35);
+    ctx.fillStyle=color; ctx.fillRect(0,0,W,H);
+    ctx.save(); ctx.globalAlpha=.12; ctx.strokeStyle=onC; ctx.lineWidth=W*0.018;
+    for (let x=-H; x<W+H; x+=W*0.07){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x+H,H); ctx.stroke(); }
+    ctx.restore();
+    const o = parseOffer(), big = o.big || (d.headline||"").slice(0,6);
+    const tagS = Math.round(W*(wide?0.024:0.034));
+    // 「限時優惠」標籤＋日期
+    ctx.font=`900 ${tagS}px ${FONT}`; const tag="限時優惠", tw=ctx.measureText(tag).width+tagS*1.4;
+    ctx.fillStyle=onC; rr(ctx,pad,pad,tw,tagS*1.9,tagS*0.95); ctx.fill();
+    ctx.fillStyle=color; ctx.textBaseline="middle"; ctx.fillText(tag,pad+tagS*0.7,pad+tagS*0.97); ctx.textBaseline="top";
+    if (o.dates){ ctx.fillStyle=onC; ctx.font=`700 ${tagS}px ${FONT}`; ctx.fillText(o.dates, pad+tw+tagS*0.6, pad+tagS*0.42); }
+    if (brandName){ ctx.font=`700 ${Math.round(tagS*0.8)}px ${FONT}`; const bw=ctx.measureText(brandName).width; ctx.fillStyle=onC; ctx.globalAlpha=.85; ctx.fillText(brandName, W-pad-bw, pad+tagS*0.5); ctx.globalAlpha=1; }
+    const pr = (photo && !wide) ? Math.min(W,H)*0.17 : 0;
+    const areaW = wide ? W*0.5 : W-pad*2-(pr ? pr*2+pad*0.4 : 0);
+    // 大數字
+    let bs = Math.round(Math.min(wide?H*0.5:W*0.42, 420)), us = Math.round(bs*0.3);
+    ctx.font=`900 ${bs}px ${FONT}`;
+    while (ctx.measureText(big).width + (o.unit ? us*o.unit.length*0.9 : 0) > areaW && bs>60){ bs-=6; us=Math.round(bs*0.3); ctx.font=`900 ${bs}px ${FONT}`; }
+    const by = wide ? (H-bs)/2 - bs*0.05 : pad + tagS*3.2;
+    ctx.fillStyle=onC; ctx.fillText(big, pad, by);
+    if (o.unit){ const bw=ctx.measureText(big).width; ctx.font=`900 ${us}px ${FONT}`; ctx.fillText(o.unit, pad+bw+us*0.15, by+bs*0.62); }
+    // 大標、副標
+    const tx = wide ? W*0.56 : pad, tw2 = wide ? W*0.44-pad : W-pad*2;
+    let y = wide ? pad + tagS*3.2 : by + bs*1.08;
+    const hl = fit(ctx, d.headline||" ", tw2, 2, wide?56:96, 36, 900);
+    ctx.fillStyle=onC; ctx.font=`900 ${hl.size}px ${FONT}`; hl.lines.forEach(l=>{ ctx.fillText(l,tx,y); y+=hl.size*1.2; });
+    const ss=Math.round(hl.size*0.42); ctx.font=`500 ${ss}px ${FONT}`; ctx.globalAlpha=.92;
+    const subs=[d.sub, o.extra].filter(Boolean);
+    subs.forEach(s=>wrap(ctx,s,tw2).slice(0,2).forEach(l=>{ ctx.fillText(l,tx,y+ss*0.3); y+=ss*1.45; })); ctx.globalAlpha=1;
+    if (pr) circleImg(ctx, photo, W-pad-pr, by+bs*0.55, pr, onC, W*0.008);
+    if (cta){ const cs=Math.round(W*(wide?0.026:0.036)); pill(ctx, cta, tx, H-pad-cs*2.1, cs, onC, deep); }
+  },
+  // 節慶禮讚：深色底、金色紙花與星芒、雙線金框，置中排版
+  festive(ctx, W, H, d, color, wide, pad, brandName, cta){
+    const deep = shade(color,-0.62), mid = shade(color,-0.3);
+    const g = ctx.createRadialGradient(W/2,H*0.45,0,W/2,H*0.45,Math.max(W,H)*0.75); g.addColorStop(0,mid); g.addColorStop(1,deep);
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    const R = rng(W*7+H*3);
+    for (let i=0;i<70;i++){
+      const x=R()*W, y=R()*H, s=W*(0.004+R()*0.01), a=R()*Math.PI;
+      ctx.save(); ctx.globalAlpha=0.35+R()*0.5; ctx.fillStyle = R()<0.7 ? GOLD : "#FFFFFF"; ctx.translate(x,y); ctx.rotate(a);
+      if (R()<0.5) ctx.fillRect(-s,-s*0.4,s*2,s*0.8); else { ctx.beginPath(); ctx.arc(0,0,s*0.6,0,Math.PI*2); ctx.fill(); }
+      ctx.restore();
+    }
+    ctx.fillStyle=GOLD; [[0.14,0.16,0.03],[0.86,0.2,0.022],[0.82,0.84,0.028],[0.18,0.8,0.02]].forEach(([x,y,r])=>star(ctx,W*x,H*y,W*r));
+    const m=pad*0.55; ctx.strokeStyle=GOLD; ctx.lineWidth=Math.max(2,W*0.004); rr(ctx,m,m,W-2*m,H-2*m,W*0.03); ctx.stroke();
+    ctx.lineWidth=Math.max(1,W*0.0015); rr(ctx,m+W*0.014,m+W*0.014,W-2*m-W*0.028,H-2*m-W*0.028,W*0.024); ctx.stroke();
+    let cx=W/2, y=(!photo && !wide) ? H*0.27 : pad*1.25, maxW=W-pad*2.6;
+    if (photo){
+      if (wide){ const r=H*0.3; circleImg(ctx,photo,pad*1.2+r,H/2,r,GOLD,W*0.006); cx=pad*1.2+2*r+(W-pad*1.2-2*r)/2; maxW=W-2*r-pad*3.6; }
+      else { const r=Math.min(W,H)*0.17; circleImg(ctx,photo,W/2,y+r,r,GOLD,W*0.007); y+=2*r+pad*0.45; }
+    }
+    if (brandName){ ctx.fillStyle=GOLD; ctx.font=`700 ${Math.round(W*(wide?0.022:0.03))}px ${FONT}`; center(ctx, brandName, cx, y); y+=W*(wide?0.05:0.065); }
+    let hl = fitF(ctx, d.headline||" ", maxW, 1, wide?88:(photo?104:124), 40, 900, SERIF);
+    if (hl.lines.length>1 || hl.size<(wide?56:84)) hl = fitF(ctx, d.headline||" ", maxW, 2, wide?88:(photo?104:124), 40, 900, SERIF);
+    ctx.fillStyle="#FFFFFF"; ctx.font=`900 ${hl.size}px ${SERIF}`; hl.lines.forEach(l=>{ center(ctx,l,cx,y); y+=hl.size*1.22; });
+    // 金色分隔線＋菱形
+    const lw=hl.size*1.6; ctx.fillStyle=GOLD; ctx.fillRect(cx-lw,y+hl.size*0.2,lw*0.8,Math.max(2,W*0.002)); ctx.fillRect(cx+lw*0.2,y+hl.size*0.2,lw*0.8,Math.max(2,W*0.002));
+    const dr=hl.size*0.1; ctx.beginPath(); ctx.moveTo(cx,y+hl.size*0.2-dr); ctx.lineTo(cx+dr,y+hl.size*0.2); ctx.lineTo(cx,y+hl.size*0.2+dr); ctx.lineTo(cx-dr,y+hl.size*0.2); ctx.fill();
+    y+=hl.size*0.55;
+    const ss=Math.round(hl.size*0.36); ctx.fillStyle="#F6E7D3"; ctx.font=`500 ${ss}px ${FONT}`;
+    if (d.sub) wrap(ctx,d.sub,maxW).slice(0,2).forEach(l=>{ center(ctx,l,cx,y); y+=ss*1.5; });
+    const o=parseOffer(); if (o.dates && y < H-pad*2.4){ ctx.font=`700 ${ss}px ${FONT}`; ctx.fillStyle=GOLD; center(ctx, o.dates, cx, y+ss*0.3); }
+    if (cta){ const cs=Math.round(W*(wide?0.024:0.032)); pillC(ctx, cta, cx, H-pad*1.1-cs*2.1, cs, GOLD, deep); }
+  },
+  // 雜誌封面：品牌名當刊頭、襯線大標、左側封面標語
+  magazine(ctx, W, H, d, color, wide, pad, brandName, cta){
+    const deep = shade(color,-0.6);
+    let ink = deep, soft = shade(color,-0.35);
+    if (photo){
+      coverImg(ctx,photo,0,0,W,H);
+      let g=ctx.createLinearGradient(0,0,0,H*0.35); g.addColorStop(0,"rgba(15,10,14,.55)"); g.addColorStop(1,"rgba(15,10,14,0)"); ctx.fillStyle=g; ctx.fillRect(0,0,W,H*0.35);
+      g=ctx.createLinearGradient(0,H*0.45,0,H); g.addColorStop(0,"rgba(15,10,14,0)"); g.addColorStop(1,"rgba(15,10,14,.8)"); ctx.fillStyle=g; ctx.fillRect(0,H*0.45,W,H*0.55);
+      ink="#FFFFFF"; soft="rgba(255,255,255,.88)";
+    } else {
+      const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,shade(color,0.9)); g.addColorStop(1,shade(color,0.7)); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle=shade(color,0.55); ctx.beginPath(); ctx.arc(W*0.78,H*0.58,Math.min(W,H)*0.32,0,Math.PI*2); ctx.fill();
+    }
+    // 刊頭
+    const mast = (brandName || "SOCIAL").trim(); ensureFont(`900 40px ${SERIF}`, mast);
+    let ms = Math.round(H*(wide?0.2:0.13)); ctx.font=`900 ${ms}px ${SERIF}`;
+    while (ctx.measureText(mast).width > W-pad*2 && ms>40){ ms-=4; ctx.font=`900 ${ms}px ${SERIF}`; }
+    ctx.fillStyle=ink; ctx.fillText(mast, pad, pad*0.7);
+    let y = pad*0.7 + ms*1.1;
+    ctx.fillStyle=ink; ctx.fillRect(pad, y, W-pad*2, Math.max(2,W*0.002)); y += W*0.012;
+    const small = Math.round(W*(wide?0.018:0.024)); ctx.font=`700 ${small}px ${FONT}`; ctx.fillStyle=soft;
+    const o=parseOffer(); ctx.fillText(["SPECIAL ISSUE", o.dates].filter(Boolean).join("  ·  "), pad, y+small*0.4);
+    // 底部大標（先算位置，封面標語只放在大標上方的空間）
+    const maxW = wide ? W*0.6 : W-pad*2;
+    const hl = fitF(ctx, d.headline||" ", maxW, 2, wide?80:128, 44, 900, SERIF);
+    const ss = Math.round(hl.size*0.34), ctaH = cta ? Math.round(W*0.03)*2.6 : 0;
+    let by = H - pad - ctaH - hl.lines.length*hl.size*1.15 - (d.sub ? ss*1.6 : 0);
+    // 封面標語：橫式放右側，直式放左中
+    const ps = Math.round(W*(wide?0.02:0.032));
+    let cx0 = wide ? W*0.68 : pad, cy = wide ? by : y + small*2.4;
+    for (const p of d.points.slice(0,3)){
+      if (!wide && cy + ps*1.2 > by - ps) break;
+      ctx.font=`700 ${ps}px ${FONT}`; ctx.fillStyle=ink; ctx.fillText("— "+(wrap(ctx,p,wide?W*0.28:W*0.42)[0]||""), cx0, cy); cy+=ps*1.7;
+    }
+    ctx.fillStyle=ink; ctx.font=`900 ${hl.size}px ${SERIF}`; hl.lines.forEach(l=>{ ctx.fillText(l,pad,by); by+=hl.size*1.15; });
+    if (d.sub){ ctx.font=`500 ${ss}px ${FONT}`; ctx.fillStyle=soft; ctx.fillText(wrap(ctx,d.sub,maxW)[0]||"", pad, by+ss*0.2); }
+    if (cta){ const cs=Math.round(W*(wide?0.022:0.028)); ctx.font=`700 ${cs}px ${FONT}`; const t=cta+"  →", tw=ctx.measureText(t).width; const yy=H-pad-cs*1.2;
+      ctx.fillStyle=ink; ctx.fillText(t, pad, yy); ctx.fillRect(pad, yy+cs*1.35, tw, Math.max(2,W*0.002)); }
+  },
+  // 對話泡泡：像一則訊息，適合 Threads 的聊天感
+  chat(ctx, W, H, d, color, wide, pad, brandName, cta){
+    const bg = shade(color,0.93), ink="#1F1A1D", muted="#6E6468";
+    ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle=shade(color,0.75); const step=W*0.04;
+    for (let x=step/2;x<W;x+=step) for (let y=step/2;y<H;y+=step){ ctx.beginPath(); ctx.arc(x,y,W*0.0022,0,Math.PI*2); ctx.fill(); }
+    const colW = wide ? (photo ? W*0.5 : W*0.58) : W-pad*2; let x0=pad, y=wide ? pad*0.9 : pad*1.4;
+    // 頭像列
+    const av = W*(wide?0.05:0.09); ctx.fillStyle=color; ctx.beginPath(); ctx.arc(x0+av/2,y+av/2,av/2,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=lum(color)>0.62?"#14161C":"#FFFFFF"; ctx.font=`900 ${Math.round(av*0.46)}px ${FONT}`; ctx.textBaseline="middle"; center(ctx, (brandName||"我").slice(0,1), x0+av/2, y+av/2+1); ctx.textBaseline="top";
+    ctx.fillStyle=ink; ctx.font=`700 ${Math.round(av*0.36)}px ${FONT}`; ctx.fillText(brandName||"小編", x0+av*1.25, y+av*0.12);
+    ctx.fillStyle=muted; ctx.font=`500 ${Math.round(av*0.3)}px ${FONT}`; ctx.fillText("剛剛", x0+av*1.25, y+av*0.56);
+    y += av*1.35;
+    // 主泡泡
+    const bp = W*(wide?0.03:0.045);
+    let hl = fit(ctx, d.headline||" ", colW-bp*2, 1, wide?66:(photo?96:124), 36, 900);
+    if (hl.lines.length>1 || hl.size<(wide?52:84)) hl = fit(ctx, d.headline||" ", colW-bp*2, 2, wide?66:(photo?96:124), 36, 900);
+    const ss = Math.round(hl.size*0.4); ctx.font=`500 ${ss}px ${FONT}`; const subL = d.sub ? wrap(ctx,d.sub,colW-bp*2).slice(0,2) : [];
+    const photoH = (photo && !wide) ? Math.min(H*0.3, (colW-bp*2)*0.56) : 0;
+    const bh = bp*2 + photoH + (photoH?bp*0.7:0) + hl.lines.length*hl.size*1.2 + subL.length*ss*1.5;
+    ctx.save(); ctx.shadowColor="rgba(40,20,30,.12)"; ctx.shadowBlur=W*0.02; ctx.shadowOffsetY=W*0.006; ctx.fillStyle="#FFFFFF"; rr(ctx,x0,y,colW,bh,W*0.035); ctx.fill(); ctx.restore();
+    ctx.fillStyle="#FFFFFF"; ctx.beginPath(); ctx.moveTo(x0+W*0.03,y); ctx.lineTo(x0,y-W*0.02); ctx.lineTo(x0+W*0.07,y); ctx.fill();
+    let iy = y+bp;
+    if (photoH){ ctx.save(); rr(ctx,x0+bp,iy,colW-bp*2,photoH,W*0.02); ctx.clip(); coverImg(ctx,photo,x0+bp,iy,colW-bp*2,photoH); ctx.restore(); iy+=photoH+bp*0.7; }
+    ctx.fillStyle=ink; ctx.font=`900 ${hl.size}px ${FONT}`; hl.lines.forEach(l=>{ ctx.fillText(l,x0+bp,iy); iy+=hl.size*1.2; });
+    ctx.fillStyle=muted; ctx.font=`500 ${ss}px ${FONT}`; subL.forEach(l=>{ ctx.fillText(l,x0+bp,iy); iy+=ss*1.5; });
+    y += bh + W*0.03;
+    // 重點：淡色小泡泡
+    const ps = Math.round(W*(wide?0.024:0.044)), ctaS = Math.round(W*(wide?0.024:0.036));
+    const limit = H - pad - ctaS*2.6;
+    for (const p of d.points){
+      ctx.font=`700 ${ps}px ${FONT}`; const t=wrap(ctx,p,colW*0.8)[0]||""; const tw=ctx.measureText(t).width+ps*1.6, th=ps*2;
+      if (y+th > limit) break;
+      ctx.fillStyle=shade(color,0.78); rr(ctx,x0,y,tw,th,th/2); ctx.fill();
+      ctx.fillStyle=shade(color,-0.5); ctx.textBaseline="middle"; ctx.fillText(t,x0+ps*0.8,y+th/2+1); ctx.textBaseline="top";
+      y += th + ps*0.5;
+    }
+    if (photo && wide){ const r=H*0.28; circleImg(ctx,photo,W-pad-r,H/2,r,"#FFFFFF",W*0.006); }
+    // CTA：右側主色泡泡（像對方回覆）
+    if (cta){ ctx.font=`700 ${ctaS}px ${FONT}`; const t=cta+"  →", tw=ctx.measureText(t).width+ctaS*1.6, th=ctaS*2.1, cx=(wide?W*0.58+pad:W-pad)-tw;
+      ctx.fillStyle=color; rr(ctx,cx,H-pad-th,tw,th,th/2); ctx.fill(); ctx.fillStyle=lum(color)>0.62?"#14161C":"#FFFFFF"; ctx.textBaseline="middle"; ctx.fillText(t,cx+ctaS*0.8,H-pad-th/2+1); ctx.textBaseline="top"; }
+  },
+  // 極簡留白：大量留白、細線、文字 CTA
+  minimal(ctx, W, H, d, color, wide, pad, brandName, cta){
+    const ink = shade(color,-0.7), muted = shade(color,-0.35);
+    ctx.fillStyle=shade(color,0.96); ctx.fillRect(0,0,W,H);
+    const p2 = pad*1.2;
+    if (brandName){ ctx.fillStyle=ink; ctx.font=`700 ${Math.round(W*(wide?0.018:0.024))}px ${FONT}`; ctx.fillText(brandName.split("").join(" "), p2, p2*0.8); }
+    ctx.fillStyle=color; ctx.beginPath(); ctx.arc(W-p2, p2*0.8+W*0.012, W*0.012, 0, Math.PI*2); ctx.fill();
+    let textW = W-p2*2;
+    if (photo){
+      if (wide){ const iw=W*0.38; ctx.save(); rr(ctx,W-p2-iw,p2*1.4,iw,H-p2*2.4,W*0.01); ctx.clip(); coverImg(ctx,photo,W-p2-iw,p2*1.4,iw,H-p2*2.4); ctx.restore(); textW=W-iw-p2*3; }
+      else { const iw=W*0.5, ih=H*0.36; ctx.save(); rr(ctx,W-p2-iw,H-p2-ih-W*0.06,iw,ih,W*0.01); ctx.clip(); coverImg(ctx,photo,W-p2-iw,H-p2-ih-W*0.06,iw,ih); ctx.restore(); }
+    }
+    let y = wide ? H*0.3 : H*0.2;
+    const hl = fit(ctx, d.headline||" ", textW, 3, wide?80:112, 40, 700);
+    ctx.fillStyle=ink; ctx.font=`700 ${hl.size}px ${FONT}`; hl.lines.forEach(l=>{ ctx.fillText(l,p2,y); y+=hl.size*1.25; });
+    ctx.fillStyle=color; ctx.fillRect(p2, y+hl.size*0.25, W*0.06, Math.max(2,W*0.003)); y+=hl.size*0.7;
+    const ss=Math.round(hl.size*0.36); ctx.fillStyle=muted; ctx.font=`400 ${ss}px ${FONT}`;
+    if (d.sub) wrap(ctx,d.sub,textW).slice(0,2).forEach(l=>{ ctx.fillText(l,p2,y); y+=ss*1.55; });
+    const cs=Math.round(W*(wide?0.02:0.026)), stopY = H - p2 - cs*2.6;
+    if (d.points.length){ y+=ss*0.6; ctx.font=`500 ${Math.round(ss*0.9)}px ${FONT}`;
+      for (const l of wrap(ctx, d.points.join("　/　"), photo&&!wide ? W*0.5-p2*1.6 : textW).slice(0,3)){ if (y+ss > stopY) break; ctx.fillText(l,p2,y); y+=ss*1.45; } }
+    if (cta){ ctx.font=`700 ${cs}px ${FONT}`; const t=cta+"  →", tw=ctx.measureText(t).width, yy=H-p2-cs;
+      ctx.fillStyle=color; ctx.fillText(t,p2,yy); ctx.fillRect(p2,yy+cs*1.4,tw,Math.max(2,W*0.002)); }
+  }
+};
 // 質感玻璃：腮紅漸層底、柔光、絲帶光線，中間一片香檳金邊的霧面玻璃面板
 function drawGlass(ctx, W, H, d, color, wide, pad, brandName, cta){
   const deep = shade(color,-0.55), mid = shade(color,-0.25);
@@ -795,9 +1010,10 @@ let tt; function toast(t){ const el=$("#toast"); el.textContent=t; el.classList.
 // ---------- 啟動 ----------
 fillForm(); renderBoards();
 if (document.fonts && document.fonts.load){
-  Promise.all([document.fonts.load(`900 80px ${FONT}`,"三平台圖文"), document.fonts.load(`700 40px ${FONT}`,"三平台"), document.fonts.load(`500 40px ${FONT}`,"三平台")])
+  Promise.all([document.fonts.load(`900 80px ${FONT}`,"三平台圖文"), document.fonts.load(`700 40px ${FONT}`,"三平台"), document.fonts.load(`500 40px ${FONT}`,"三平台"), document.fonts.load(`900 80px ${SERIF}`,"三平台圖文")])
     .then(drawAll).catch(()=>{});
   document.fonts.ready.then(drawAll).catch(()=>{});
+  try{ document.fonts.addEventListener("loadingdone", () => { clearTimeout(fontRedraw); fontRedraw = setTimeout(drawAll, 60); }); }catch(e){}
 }
 setAI();
 if (window.claude && claude.use){
