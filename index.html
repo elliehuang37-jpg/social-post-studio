@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!--ARTIFACT-START-->
+<title>三平台圖文工作室</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!--PWA-HEAD-START-->
+<meta name="description" content="填一份稿單，用 AI 同時產出 Facebook、Instagram、Threads 三平台的圖卡與貼文文案，可編修、複製、下載與分享。">
+<meta name="theme-color" content="#F6EAE9">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="三平台圖文">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<!--PWA-HEAD-END-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@600;700;900&family=Cormorant+Garamond:ital,wght@0,600;1,500&display=swap">
+<style>
+/* Layout: 主視覺橫幅（玫瑰玻璃展台）→ 左側稿單｜右側三張平台樣張；窄螢幕直排。
+   Look: 單一淺色世界 —— 腮紅粉底、霧面玻璃卡片、香檳金邊框、酒紅主色，取自主視覺圖。 */
+:root{
+  --paper:#F6EAE9; --paper-2:#FBF4F2; --sheet:rgba(255,252,251,.62); --sheet-solid:#FFF9F8; --field:rgba(255,255,255,.78);
+  --ink:#3B1626; --muted:#8A6570; --line:rgba(176,112,128,.24); --line-strong:rgba(176,112,128,.42);
+  --accent:#7A1F45; --accent-2:#B4466E; --accent-ink:#FFF7F9; --rose:#D98FA6;
+  --gold:#C7A27C; --gold-2:#E8D2B6; --mark:#F1D9C4; --mark-ink:#5B2A1C;
+  --ok:#2F7A57; --warn:#A35A1E; --bad:#B0283F; --soft:rgba(217,143,166,.12);
+  --glass-rim:0 0 0 1px rgba(199,162,124,.45),inset 0 1px 0 rgba(255,255,255,.9);
+  --shadow:0 18px 44px rgba(122,31,69,.12),0 2px 6px rgba(122,31,69,.06);
+  --ff-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --ff-display:"Noto Serif TC","Songti TC","PMingLiU",serif;
+  --ff-latin:"Cormorant Garamond","Noto Serif TC",serif;
+  --r:18px;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--ff-body);font-size:15px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 56px}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(900px 520px at 85% -10%,rgba(255,255,255,.9),transparent 60%),
+    radial-gradient(700px 500px at 0% 100%,rgba(217,143,166,.22),transparent 60%),
+    linear-gradient(160deg,var(--paper-2),var(--paper) 60%)}
+.wrap{max-width:1480px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+
+/* 主視覺 */
+.hero{position:relative;border-radius:26px;overflow:hidden;min-height:clamp(260px,30vw,420px);display:flex;align-items:center;
+  background:#F3E3E1 url("assets/hero.webp") right center/cover no-repeat;box-shadow:var(--glass-rim),var(--shadow)}
+.hero::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(250,240,238,.96) 0%,rgba(250,240,238,.86) 30%,rgba(250,240,238,.25) 52%,transparent 64%)}
+.hero-copy{position:relative;padding:clamp(22px,3.4vw,48px);max-width:min(560px,52%);display:flex;flex-direction:column;gap:12px}
+.eyebrow{font-family:var(--ff-latin);font-style:italic;font-weight:500;font-size:17px;letter-spacing:.04em;color:var(--accent-2)}
+h1{font-family:var(--ff-display);font-weight:900;font-size:clamp(28px,3.6vw,46px);line-height:1.18;margin:0;letter-spacing:.02em;text-wrap:balance;color:var(--accent)}
+h1 .hl{display:inline-block;background:linear-gradient(transparent 62%,var(--mark) 62%);padding:0 4px;color:var(--ink)}
+.lede{margin:0;color:var(--muted);max-width:40ch;font-size:15px}
+.hero-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.pf-pill{font-size:12.5px;font-weight:700;color:var(--accent);background:rgba(255,255,255,.7);border:1px solid var(--line);border-radius:999px;padding:4px 12px;backdrop-filter:blur(6px)}
+@media (max-width:980px){
+  .hero{display:block;min-height:0;background:none;box-shadow:none;border-radius:0;overflow:visible}
+  .hero::before{content:none}
+  .hero-art{display:block;width:100%;aspect-ratio:1672/941;border-radius:20px;background:#F3E3E1 url("assets/hero.webp") center/cover no-repeat;box-shadow:var(--glass-rim),var(--shadow)}
+  .hero-copy{max-width:none;padding:18px 2px 0}
+}
+@media (min-width:981px){.hero-art{display:none}}
+
+.ai-state{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.75);border:1px solid var(--line-strong);border-radius:999px;padding:6px 14px;font:inherit;font-size:13px;font-weight:500;color:var(--ink);cursor:pointer;backdrop-filter:blur(8px)}
+.ai-state:hover{border-color:var(--accent-2)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.dot.on{background:var(--ok);box-shadow:0 0 0 3px rgba(47,122,87,.15)}
+
+.grid{display:grid;grid-template-columns:minmax(300px,370px) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:980px){.grid{grid-template-columns:minmax(0,1fr)}}
+.glass{background:var(--sheet);-webkit-backdrop-filter:blur(16px) saturate(1.2);backdrop-filter:blur(16px) saturate(1.2);border:1px solid rgba(255,255,255,.75);border-radius:var(--r);box-shadow:var(--glass-rim),var(--shadow)}
+.brief{padding:20px;display:flex;flex-direction:column;gap:14px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:980px){.brief{position:static}}
+.brief h2{font-family:var(--ff-display);font-size:19px;margin:0;display:flex;justify-content:space-between;align-items:baseline;color:var(--accent)}
+.brief h2 .eyebrow{font-size:15px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:13px;font-weight:700}
+.field .hint{font-size:12px;color:var(--muted);font-weight:400}
+input[type=text],input[type=password],textarea,select{font:inherit;font-size:14px;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:12px;padding:9px 12px;width:100%}
+input[type=text]:hover,textarea:hover,select:hover{border-color:var(--line-strong)}
+textarea{resize:vertical;min-height:64px}
+input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent-2);outline-offset:2px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row2>*{min-width:0}
+.color-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.swatch{width:28px;height:28px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line-strong);cursor:pointer;padding:0}
+.swatch[aria-pressed="true"]{box-shadow:0 0 0 2px var(--gold),0 0 0 4px rgba(199,162,124,.25)}
+input[type=color]{width:32px;height:32px;border:none;background:none;padding:0;cursor:pointer}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+.check input{margin-top:4px;accent-color:var(--accent)}
+.btn{font:inherit;font-weight:700;font-size:14px;border-radius:999px;padding:9px 16px;border:1px solid var(--line-strong);background:rgba(255,255,255,.8);color:var(--accent);cursor:pointer;display:inline-flex;align-items:center;gap:6px;justify-content:center;transition:transform .15s,box-shadow .15s,border-color .15s}
+.btn:hover{border-color:var(--gold);box-shadow:0 4px 14px rgba(122,31,69,.12)}
+.btn.primary{background:linear-gradient(135deg,var(--accent-2),var(--accent) 70%);color:var(--accent-ink);border:1px solid rgba(232,210,182,.9);font-size:15px;padding:13px 18px;box-shadow:0 0 0 1px rgba(199,162,124,.5),0 10px 24px rgba(122,31,69,.28)}
+.btn.primary:hover{transform:translateY(-1px);box-shadow:0 0 0 1px var(--gold),0 14px 30px rgba(122,31,69,.34)}
+.btn.small{font-size:12.5px;padding:7px 12px}
+.btn:disabled{opacity:.55;cursor:progress;transform:none}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.actions .primary{flex:1}
+.status{font-size:13px;color:var(--muted);min-height:1.4em}
+.status.err{color:var(--bad)}
+.photo-drop{border:1px dashed var(--line-strong);background:rgba(255,255,255,.45);border-radius:12px;padding:10px;display:flex;gap:10px;align-items:center;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.photo-drop input{min-width:0;max-width:100%;font-size:12.5px}
+.photo-drop img{width:48px;height:48px;object-fit:cover;border-radius:10px;box-shadow:var(--glass-rim)}
+
+.boards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:start}
+@media (max-width:1240px){.boards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:720px){.boards{grid-template-columns:minmax(0,1fr)}}
+.board{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.board-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 16px 10px}
+.pf{display:flex;align-items:center;gap:8px;font-weight:700;font-family:var(--ff-display);font-size:17px;color:var(--accent)}
+.pf i{width:9px;height:9px;border-radius:50%;display:inline-block;box-shadow:0 0 0 3px rgba(255,255,255,.8)}
+.pf small{font-family:var(--ff-body);font-weight:500;font-size:12px;color:var(--muted)}
+.badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--mark);color:var(--mark-ink);white-space:nowrap}
+.badge.ai{background:linear-gradient(135deg,#fff,var(--gold-2));color:var(--accent);box-shadow:0 0 0 1px rgba(199,162,124,.5)}
+.canvas-box{margin:0 12px;padding:14px;display:flex;justify-content:center;border-radius:14px;
+  background:radial-gradient(circle at 30% 20%,rgba(255,255,255,.9),transparent 60%),linear-gradient(160deg,#F7E6E6,#EFD6D9)}
+.canvas-box canvas{width:100%;max-width:100%;height:auto;border-radius:6px;box-shadow:0 0 0 1px rgba(199,162,124,.5),0 12px 28px rgba(122,31,69,.18)}
+.board-body{padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.sizes{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:inherit;font-size:12px;border:1px solid var(--line);background:rgba(255,255,255,.6);color:var(--ink);border-radius:999px;padding:4px 11px;cursor:pointer;font-variant-numeric:tabular-nums}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.mini{display:grid;grid-template-columns:1fr;gap:6px}
+.mini input{font-size:13px;padding:7px 10px}
+.board textarea.caption{min-height:220px;font-size:14px;line-height:1.75}
+.meter{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.meter b{font-weight:700;color:var(--ink)}
+.meter .over,.meter .over b{color:var(--bad)}
+.flags{display:flex;flex-direction:column;gap:4px}
+.flag{font-size:12.5px;border-left:3px solid var(--warn);background:rgba(255,255,255,.55);padding:6px 10px;border-radius:0 10px 10px 0}
+.flag b{color:var(--warn)}
+.flag.okf{border-color:var(--ok)}
+.flag.okf b{color:var(--ok)}
+.board-foot{display:flex;gap:8px;flex-wrap:wrap;padding:0 16px 16px}
+.board-foot .btn{flex:1;min-width:110px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--accent);color:var(--accent-ink);padding:9px 18px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;box-shadow:0 0 0 1px var(--gold),0 10px 24px rgba(122,31,69,.3);z-index:60}
+.toast.show{opacity:1}
+.guide{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+.guide summary{cursor:pointer;font-weight:700;color:var(--accent)}
+.guide ul{margin:6px 0 0;padding-left:18px}
+.sheet-bg{position:fixed;inset:0;background:rgba(59,22,38,.35);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+.sheet{background:var(--sheet-solid);color:var(--ink);border:1px solid rgba(255,255,255,.8);box-shadow:var(--glass-rim),var(--shadow);border-radius:20px;max-width:460px;width:100%;padding:22px;display:flex;flex-direction:column;gap:12px;max-height:90vh;overflow:auto}
+.sheet h2{margin:0;font-size:20px;font-family:var(--ff-display);color:var(--accent)}
+.note{font-size:12.5px;color:var(--muted);margin:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<!--HEAD-END-->
+</head>
+<body>
+
+<div class="wrap">
+  <header class="hero" aria-label="三平台圖文工作室">
+    <div class="hero-art" role="img" aria-label="一份產品圖文同時發佈到 Facebook、Instagram、Threads 的示意"></div>
+    <div class="hero-copy">
+      <div class="eyebrow">Social Post Studio</div>
+      <h1>三平台圖文工作室<br><span class="hl">一份稿單，一次出稿</span></h1>
+      <p class="lede">同一個產品，Facebook、Instagram、Threads 各寫各的切角：圖卡尺寸、標題與貼文文案依平台習慣改寫，改完就能複製、下載、分享。</p>
+      <div class="hero-row">
+        <button type="button" class="ai-state" id="aiState"><span class="dot" id="aiDot"></span><span id="aiLabel">正在連線 Claude…</span></button>
+        <span class="pf-pill">FB 1200×630</span><span class="pf-pill">IG 4:5</span><span class="pf-pill">Threads 500 字</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <form class="brief glass" id="brief" autocomplete="off">
+      <h2><span>稿單</span><span class="eyebrow">Brief</span></h2>
+      <div class="row2">
+        <div class="field"><label for="f-brand">品牌／帳號名稱</label><input type="text" id="f-brand"></div>
+        <div class="field"><label for="f-tone">語氣</label>
+          <select id="f-tone">
+            <option>親切閨蜜</option><option>專業顧問</option><option>活潑促銷</option><option>質感品牌</option><option>幽默口語</option>
+          </select></div>
+      </div>
+      <div class="field"><label for="f-topic">主題／產品 <span class="hint">一句話說清楚這篇要講什麼</span></label><input type="text" id="f-topic"></div>
+      <div class="field"><label for="f-points">重點賣點 <span class="hint">一行一點，最多 5 點</span></label><textarea id="f-points" rows="4"></textarea></div>
+      <div class="field"><label for="f-audience">目標受眾</label><input type="text" id="f-audience"></div>
+      <div class="field"><label for="f-offer">活動資訊 <span class="hint">日期、優惠、地點（沒有可留空）</span></label><input type="text" id="f-offer"></div>
+      <div class="field"><label for="f-cta">行動呼籲 CTA</label><input type="text" id="f-cta"></div>
+      <div class="row2">
+        <div class="field"><label for="f-style">圖卡風格</label>
+          <select id="f-style">
+            <option value="glass">質感玻璃</option><option value="bold">大字主視覺</option><option value="list">重點清單卡</option><option value="photo">照片疊字</option>
+          </select></div>
+        <div class="field"><label>主色</label>
+          <div class="color-row" id="swatches"></div></div>
+      </div>
+      <div class="field"><label for="f-photo">產品／情境照片 <span class="hint">選填；照片疊字風格會用到，AI 也會參考</span></label>
+        <div class="photo-drop" id="photoDrop"><img id="photoThumb" alt="" hidden><span id="photoName">拖曳照片到這裡，或</span><input type="file" id="f-photo" accept="image/png,image/jpeg,image/webp"></div>
+      </div>
+      <label class="check"><input type="checkbox" id="f-comply" checked><span>美妝／保健合規提醒：避免療效、誇大與絕對用語，並在文案中標出疑慮字詞</span></label>
+      <div class="actions">
+        <button type="submit" class="btn primary" id="genBtn">用 AI 生成三平台圖文</button>
+        <button type="button" class="btn" id="stopBtn" hidden>停止</button>
+      </div>
+      <div class="status" id="status" role="status"></div>
+      <details class="guide">
+        <summary>三平台寫法差異</summary>
+        <ul>
+          <li><b>Facebook</b>：第一行就是鉤子，段落分明，資訊可以完整；hashtag 2–3 個就好。</li>
+          <li><b>Instagram</b>：圖片負責吸睛，前 125 字決定會不會被點「更多」；hashtag 上限 5 個。</li>
+          <li><b>Threads</b>：像跟朋友聊天，短、有觀點、丟一個問題；上限 500 字，話題標籤 1 個。</li>
+        </ul>
+      </details>
+    </form>
+
+    <section class="boards" id="boards" aria-label="三平台樣張"></section>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="sheet-bg" id="aiSheet" hidden>
+  <form class="sheet" id="aiForm" role="dialog" aria-modal="true" aria-labelledby="aiTitle">
+    <h2 id="aiTitle">AI 連線設定</h2>
+    <p class="note">這個 App 用 Anthropic 的 Claude 寫文案。請貼上你自己的 API 金鑰（到 console.anthropic.com 的 API Keys 建立），用量由你的 Anthropic 帳戶計費。</p>
+    <div class="field"><label for="aiKey">API 金鑰</label><input type="password" id="aiKey" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" style="font:inherit;font-size:14px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%"></div>
+    <div class="field"><label for="aiModel">模型</label><select id="aiModel">
+      <option value="claude-sonnet-5-5">Claude Sonnet 5.5（文案品質與速度平衡，預設）</option>
+      <option value="claude-opus-5-5">Claude Opus 5.5（最聰明、較慢）</option>
+      <option value="claude-haiku-5-5">Claude Haiku 5.5（最快、最省）</option>
+    </select></div>
+    <p class="note">金鑰只存在這台裝置的瀏覽器，只會傳給 api.anthropic.com。共用電腦請用完按「清除金鑰」。</p>
+    <p class="note" id="aiTestMsg" aria-live="polite"></p>
+    <div class="actions">
+      <button class="btn primary" type="submit">儲存並測試</button>
+      <button class="btn" type="button" id="aiClear">清除金鑰</button>
+      <button class="btn" type="button" id="aiCancel">關閉</button>
+    </div>
+    <p class="note">沒有金鑰也能用：按生成會改用內建範本，並可「複製 AI 提示詞」貼到你慣用的 AI 工具。</p>
+  </form>
+</div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const STORE = "sps-brief-v2";
+const PLATFORMS = {
+  fb: { name:"Facebook", note:"動態貼文", color:"#1877F2", limit:null, tagMax:3,
+        sizes:[["1200×630","橫式",1200,630],["1080×1080","方形",1080,1080],["1080×1350","直式 4:5",1080,1350]], size:0 },
+  ig: { name:"Instagram", note:"貼文／輪播封面", color:"#D62976", limit:2200, tagMax:5,
+        sizes:[["1080×1350","直式 4:5",1080,1350],["1080×1080","方形",1080,1080],["1080×1920","限動 9:16",1080,1920]], size:0 },
+  th: { name:"Threads", note:"串文", color:"#111111", limit:500, tagMax:1,
+        sizes:[["1080×1080","方形",1080,1080],["1080×1350","直式 4:5",1080,1350]], size:0 }
+};
+const BRAND_COLORS = ["#C2557A","#7A1F45","#E3A0B4","#B08A5B","#2B2A33","#2747C9"];
+const EXAMPLE = {
+  brand:"小日子保養所", tone:"親切閨蜜", topic:"玻尿酸保濕精華｜秋冬新上市",
+  points:"三重分子玻尿酸，一抹就吸收\n無添加香料，敏弱肌也能用\n30ml 約可用 2 個月",
+  audience:"25–40 歲上班族女性，換季皮膚乾、上妝卡粉",
+  offer:"11/25–11/30 首購 85 折，滿 999 送旅行組",
+  cta:"點連結搶首購優惠", style:"glass", color:"#C2557A", comply:true
+};
+// 合規提醒字庫：常見的療效／誇大／絕對用語（提醒用途，非法律意見）
+const RISK = [
+  ["治療","改成「改善外觀」「舒緩乾燥感」"],["療效","避免醫療效果暗示"],["根治","改成「調理」「照顧」"],
+  ["醫療級","化粧品不宜宣稱醫療等級"],["消炎","化粧品不得宣稱消炎"],["抗發炎","化粧品不得宣稱抗發炎"],
+  ["殺菌","須有相關許可才能宣稱"],["除皺","可改「淡化細紋外觀」"],["回春","屬誇大用語"],["永久","屬絕對用語"],
+  ["保證","避免保證效果"],["100%","避免百分之百等絕對數字"],["第一","須有客觀佐證來源"],["最有效","屬最高級誇大用語"],
+  ["零副作用","不得宣稱無副作用"],["無副作用","不得宣稱無副作用"],["減肥","一般商品不得宣稱減肥"],["瘦身","需注意食品／化粧品的宣稱限制"],
+  ["排毒","屬誇大或醫療暗示"],["增高","屬誇大宣稱"],["降血糖","屬醫療效能"],["降血壓","屬醫療效能"],["預防疾病","屬醫療效能"],["再生","避免「細胞再生」類宣稱"]
+];
+
+let brief = load() || {...EXAMPLE};
+let photo = null, photoBlob = null;
+let result = makeLocal(brief);   // 開啟時先以範例稿單產出一版
+let source = "example";          // example | local | ai
+let downloads = null, imgOK = false, ctl = null;
+
+// ---------- AI 連線 ----------
+// 兩種連到 Claude 的方式：在 claude.ai 的 Artifact 裡，用檢視者自己的 Claude 帳戶（sample）；
+// 安裝成 PWA 時，用使用者自己的 API 金鑰直接呼叫 Messages API，金鑰只存在這台裝置。
+let HOST = null;
+const API_URL = "https://api.anthropic.com/v1/messages";
+const MODELS = ["claude-sonnet-5-5","claude-opus-5-5","claude-haiku-5-5"];
+const AIC = { key:"", model:MODELS[0] };
+try{ const c = JSON.parse(localStorage.getItem("sps-ai") || "{}"); AIC.key = c.key || ""; if (MODELS.includes(c.model)) AIC.model = c.model; }catch(e){}
+const saveAI = () => { try{ localStorage.setItem("sps-ai", JSON.stringify(AIC)); }catch(e){} };
+const aiOn = () => !!HOST || !!AIC.key;
+async function callClaude(content, signal){
+  const body = { model:AIC.model, max_tokens:8000, messages:[{role:"user", content}], output_config:{effort:"low"} };
+  const headers = { "content-type":"application/json", "x-api-key":AIC.key, "anthropic-version":"2026-10-21", "anthropic-dangerous-direct-browser-access":"true" };
+  if (AIC.model !== "claude-haiku-5-5"){ body.fallbacks = "default"; headers["anthropic-beta"] = "server-side-fallback-2026-07-01"; }
+  let res;
+  try{ res = await fetch(API_URL, { method:"POST", headers, body:JSON.stringify(body), signal }); }
+  catch(e){ throw { code: e && e.name==="AbortError" ? "cancelled" : "network" }; }
+  if (!res.ok){
+    let msg=""; try{ msg = (await res.json())?.error?.message || ""; }catch(e){}
+    const s = res.status;
+    throw { code: s===401||s===403 ? "bad_key" : s===429 ? "rate_limited" : s>=500 ? "upstream_error" : "api_error", message:msg };
+  }
+  const r = await res.json();
+  if (r.stop_reason === "refusal") throw { code:"refused" };
+  return (r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim();
+}
+// 照片縮到長邊 1568px 再轉 base64，省流量也符合 API 建議尺寸
+function imageBlock(img){
+  const s = Math.min(1, 1568/Math.max(img.width, img.height));
+  const c = document.createElement("canvas"); c.width = Math.round(img.width*s); c.height = Math.round(img.height*s);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return { type:"image", source:{ type:"base64", media_type:"image/jpeg", data:c.toDataURL("image/jpeg", .85).split(",")[1] } };
+}
+async function aiJson(prompt, { signal, withPhoto } = {}){
+  if (HOST){
+    const o = { signal, cache:false };
+    if (withPhoto && photoBlob && imgOK) o.images = photoBlob;
+    return await HOST.json(prompt, o);
+  }
+  if (!AIC.key) throw { code:"no_ai" };
+  const content = [];
+  if (withPhoto && photo) content.push(imageBlock(photo));
+  content.push({ type:"text", text: prompt + "\n\n只回覆一個 JSON 物件，不要任何說明文字或 Markdown。" });
+  const t = await callClaude(content, signal);
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const src = fence ? fence[1] : t.slice(t.indexOf("{"), t.lastIndexOf("}")+1);
+  try{ return JSON.parse(src); }catch(e){ throw { code:"invalid_json" }; }
+}
+function openAiSheet(){
+  if (HOST){ toast("已使用你的 Claude 帳戶，不需要金鑰"); return; }
+  if (IN_CLAUDE){ toast("這個頁面目前無法使用 Claude，重新整理後允許使用即可"); return; }
+  $("#aiKey").value = AIC.key; $("#aiModel").value = AIC.model; $("#aiTestMsg").textContent = ""; $("#aiSheet").hidden = false; $("#aiKey").focus();
+}
+$("#aiState").onclick = openAiSheet;
+$("#aiCancel").onclick = () => $("#aiSheet").hidden = true;
+$("#aiSheet").addEventListener("click", e => { if (e.target.id==="aiSheet") $("#aiSheet").hidden = true; });
+document.addEventListener("keydown", e => { if (e.key==="Escape") $("#aiSheet").hidden = true; });
+$("#aiClear").onclick = () => { AIC.key=""; saveAI(); $("#aiKey").value=""; setAI(); $("#aiTestMsg").textContent="已清除這台裝置上的金鑰。"; };
+$("#aiForm").onsubmit = async e => {
+  e.preventDefault();
+  const key = $("#aiKey").value.trim(), msg = $("#aiTestMsg");
+  if (!/^sk-ant-/.test(key)){ msg.textContent = "金鑰應以 sk-ant- 開頭，請確認是否完整貼上。"; return; }
+  AIC.key = key; AIC.model = $("#aiModel").value; saveAI(); setAI();
+  msg.textContent = "測試連線中…";
+  try{ const t = await callClaude([{type:"text", text:"用繁體中文回覆「連線成功」四個字。"}]); msg.textContent = "連線成功（"+t.slice(0,20)+"）。可以開始用 AI 生成了。"; toast("AI 已連線"); }
+  catch(err){ msg.textContent = ERR[err.code] || ("連線失敗：" + (err.message || "請稍後再試")); if (err.code==="bad_key"){ AIC.key=""; saveAI(); setAI(); } }
+};
+
+// ---------- 表單 ----------
+const fields = ["brand","tone","topic","points","audience","offer","cta","style"];
+function fillForm(){
+  fields.forEach(k => { const el = $("#f-"+k); if (el) el.value = brief[k] ?? ""; });
+  $("#f-comply").checked = brief.comply !== false;
+  renderSwatches();
+}
+function readForm(){
+  fields.forEach(k => brief[k] = $("#f-"+k).value.trim());
+  brief.comply = $("#f-comply").checked;
+  save();
+}
+function renderSwatches(){
+  const box = $("#swatches"); box.innerHTML = "";
+  BRAND_COLORS.forEach(c => {
+    const b = document.createElement("button"); b.type="button"; b.className="swatch"; b.style.background=c;
+    b.setAttribute("aria-label","主色 "+c); b.setAttribute("aria-pressed", String(brief.color===c));
+    b.onclick = () => { brief.color=c; save(); renderSwatches(); drawAll(); };
+    box.append(b);
+  });
+  const pick = document.createElement("input"); pick.type="color"; pick.id="f-color"; pick.value = brief.color || "#D2335C";
+  pick.setAttribute("aria-label","自訂主色");
+  pick.oninput = () => { brief.color=pick.value; save(); drawAll(); };
+  box.append(pick);
+}
+function save(){ try{ localStorage.setItem(STORE, JSON.stringify(brief)); }catch(e){} }
+function load(){ try{ return JSON.parse(localStorage.getItem(STORE)); }catch(e){ return null; } }
+
+$("#f-style").addEventListener("change", () => { brief.style=$("#f-style").value; save(); drawAll(); });
+["brand"].forEach(k => $("#f-"+k).addEventListener("input", () => { brief[k]=$("#f-"+k).value.trim(); save(); drawAll(); }));
+$("#f-comply").addEventListener("change", () => { brief.comply=$("#f-comply").checked; save(); Object.keys(PLATFORMS).forEach(updateMeta); });
+
+// 照片
+function setPhoto(file){
+  if (!file || !/^image\//.test(file.type)) return;
+  photoBlob = file;
+  const r = new FileReader();
+  r.onload = () => { const im = new Image(); im.onload = () => { photo = im; $("#photoThumb").src = r.result; $("#photoThumb").hidden=false; $("#photoName").textContent = file.name; drawAll(); }; im.src = r.result; };
+  r.readAsDataURL(file);
+}
+$("#f-photo").addEventListener("change", e => setPhoto(e.target.files[0]));
+const drop = $("#photoDrop");
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.style.borderColor="var(--accent)"; });
+drop.addEventListener("dragleave", () => drop.style.borderColor="");
+drop.addEventListener("drop", e => { e.preventDefault(); drop.style.borderColor=""; setPhoto(e.dataTransfer.files[0]); });
+
+// ---------- 本機範本（AI 無法使用時的備案） ----------
+function makeLocal(b){
+  const pts = (b.points||"").split(/\n+/).map(s=>s.trim()).filter(Boolean).slice(0,5);
+  const topic = b.topic || "新品上市";
+  const main = topic.split(/[｜|]/)[0].trim();
+  const tagBase = main.replace(/[^\p{L}\p{N}]/gu,"").slice(0,10) || "新品";
+  const brandTag = (b.brand||"").replace(/[^\p{L}\p{N}]/gu,"");
+  const offer = b.offer ? b.offer : "";
+  const cta = b.cta || "了解更多";
+  const aud = b.audience || "";
+  const short = pts.map(p => p.split(/[，,。]/)[0].slice(0,12));
+  return {
+    fb:{ headline: main.slice(0,16), sub: (topic.split(/[｜|]/)[1]||short[0]||"").trim().slice(0,24), points: short.slice(0,3),
+      caption: `${aud ? "給"+aud.split(/[，,]/)[0]+"：" : ""}換季最怕的，就是皮膚突然不聽話。\n\n${b.brand||"我們"}這次帶來「${topic}」👇\n\n${pts.map(p=>"✔ "+p).join("\n")}\n\n${offer ? "📣 "+offer+"\n\n" : ""}👉 ${cta}`,
+      hashtags:[tagBase, brandTag].filter(Boolean).slice(0,3) },
+    ig:{ headline: main.slice(0,14), sub: short[0]||"", points: short.slice(0,3),
+      caption: `${main}，今年秋冬的保濕答案 ✨\n\n${pts.map(p=>"・"+p).join("\n")}\n\n${offer ? "🎁 "+offer+"\n" : ""}${cta}（連結在主頁）`,
+      hashtags:[tagBase, brandTag, "保養日常", "秋冬保濕"].filter(Boolean).slice(0,5) },
+    th:{ headline: main.slice(0,14), sub: "你也是換季就乾到不行嗎？", points: short.slice(0,3),
+      caption: `老實說，每年換季我的臉都在抗議😮‍💨\n\n最近在用${b.brand ? " "+b.brand+" 的" : ""}${main}，${short[0]||"質地很好吸收"}，${short[1]||"用起來很安心"}。\n\n${offer ? offer+"，" : ""}有在找保濕品的可以看看。\n\n你們換季都怎麼救皮膚？`,
+      hashtags:[tagBase].slice(0,1) }
+  };
+}
+
+// ---------- AI 生成 ----------
+const RULES = `平台寫法規則：
+- fb（Facebook 動態貼文）：第一行是讓人停下來的鉤子；段落分明、資訊完整，150–300 字；結尾放 CTA；hashtags 2–3 個。
+- ig（Instagram 貼文）：前 125 字要講完重點與好處；適度使用表情符號並換行，100–220 字；CTA 寫「連結在主頁」之類的 IG 用法；hashtags 最多 5 個，混合品類詞與品牌詞。
+- th（Threads 串文）：口語、像跟朋友聊天、有個人觀點，60–250 字，嚴禁超過 450 字；結尾丟一個問題引導留言；hashtags 只給 1 個話題標籤。
+圖卡文字（每平台各自一組，要配合該平台調性）：headline 不超過 14 個中文字、是圖片上的大標；sub 不超過 22 字；points 為 3 條、每條不超過 12 字。`;
+function complyRule(){ return brief.comply ? `\n合規：這是美妝／保健類內容，必須遵守台灣化粧品與食品廣告規範。不可使用療效、醫療、治療、消炎、根治、減肥、排毒、保證、100%、第一、最有效、零副作用等字眼；功效描述用「外觀」「感受」「幫助維持」等合規說法。` : ""; }
+function briefText(){
+  return `品牌／帳號：${brief.brand||"（未填）"}
+主題／產品：${brief.topic}
+重點賣點：
+${brief.points}
+目標受眾：${brief.audience||"（未填）"}
+活動資訊：${brief.offer||"（無）"}
+CTA：${brief.cta||"（自行判斷）"}
+語氣：${brief.tone}`;
+}
+const SHAPE = `{"headline":"","sub":"","points":["","",""],"caption":"","hashtags":["不含#的標籤"]}`;
+function promptAll(){
+  return `你是台灣的社群小編。依下面的稿單，一次寫出 Facebook、Instagram、Threads 三個平台的貼文與圖卡文字。全部使用繁體中文（台灣用語）。三個平台的切角與句子要明顯不同，不要只是長短不同的同一篇。
+${photo && (HOST ? imgOK : true) ? "附上的照片是產品或情境照，請參考照片內容寫出具體的畫面感。\n" : ""}
+${RULES}${complyRule()}
+
+稿單：
+${briefText()}
+
+只回覆一個 JSON 物件，格式：{"fb":${SHAPE},"ig":${SHAPE},"th":${SHAPE}}`;
+}
+function promptOne(key){
+  const cur = result[key];
+  return `你是台灣的社群小編。請為 ${PLATFORMS[key].name} 重新寫一個「不同切角」的版本，跟目前版本要有明顯差異（不同的開頭鉤子與敘事角度）。全部使用繁體中文（台灣用語）。
+${RULES}${complyRule()}
+
+稿單：
+${briefText()}
+
+目前版本（不要重複它）：
+${cur.caption}
+
+只回覆一個 JSON 物件，格式：${SHAPE}`;
+}
+function clean(p){
+  const s = v => String(v ?? "").trim();
+  return { headline:s(p.headline), sub:s(p.sub), points:(Array.isArray(p.points)?p.points:[]).map(s).filter(Boolean).slice(0,3),
+    caption:s(p.caption), hashtags:(Array.isArray(p.hashtags)?p.hashtags:[]).map(t=>s(t).replace(/^#+/,"").replace(/\s+/g,"")).filter(Boolean) };
+}
+const ERR = {
+  not_granted:"你沒有允許這個頁面使用 Claude，已改用內建範本產出。", sampling_disabled:"這個帳號目前無法使用 Claude，已改用內建範本產出。",
+  rate_limited:"使用次數太密集，請稍等一下再按一次。", session_expired:"登入已過期，請重新登入 claude.ai 後再試。",
+  refused:"Claude 婉拒了這份稿單，請調整主題或用字再試。", invalid_json:"AI 回覆格式不完整，請再按一次生成。",
+  image_rejected:"照片格式或大小不支援，請換一張 JPG／PNG。", cancelled:"已停止。",
+  bad_key:"API 金鑰無效或沒有權限，請點右上角「AI 連線」重新貼上。", network:"連不上 AI 服務，請檢查網路。"
+};
+let lastPrompt = "";
+async function generateAll(){
+  readForm();
+  if (!brief.topic){ setStatus("請先填寫「主題／產品」。", true); $("#f-topic").focus(); return; }
+  lastPrompt = promptAll();
+  if (!aiOn()){ result = makeLocal(brief); source="local"; renderBoards(); setStatus("尚未連線 AI，已用內建範本產出。", false, true); return; }
+  ctl = new AbortController(); busy(true); setStatus("Claude 正在構思三個平台的切角與文案…");
+  try{
+    const data = await aiJson(lastPrompt, { signal: ctl.signal, withPhoto:true });
+    const next = {};
+    for (const k of ["fb","ig","th"]){ if (!data || !data[k]) throw {code:"invalid_json"}; next[k] = clean(data[k]); }
+    result = next; source = "ai"; renderBoards(); setStatus("完成。可直接在樣張上修改文字，圖卡會同步更新。");
+  }catch(e){
+    const code = e && e.code;
+    if (code==="not_granted" || code==="sampling_disabled"){ HOST=null; setAI(); result = makeLocal(brief); source="local"; renderBoards(); }
+    setStatus(ERR[code] || (code==="api_error" ? "請求被拒絕：" + (e.message||"請稍後再試") : "連線中斷，請再按一次生成。"), code!=="cancelled", !HOST);
+  }finally{ busy(false); }
+}
+async function regenOne(key, btn){
+  readForm();
+  if (!aiOn()){ toast("先點右上角「AI 連線」設定，才能用 AI 換一版"); return; }
+  btn.disabled = true; const old = btn.textContent; btn.textContent = "改寫中…";
+  try{
+    const data = await aiJson(promptOne(key));
+    result[key] = clean(data); source="ai"; renderBoard(key); toast(PLATFORMS[key].name+" 已換一版");
+  }catch(e){ toast(ERR[e && e.code] || "沒有成功，請再試一次"); }
+  finally{ btn.disabled=false; btn.textContent=old; }
+}
+function busy(on){ $("#genBtn").disabled=on; $("#stopBtn").hidden=!on; $("#genBtn").textContent = on ? "生成中…" : "用 AI 生成三平台圖文"; }
+$("#stopBtn").onclick = () => ctl && ctl.abort();
+$("#brief").addEventListener("submit", e => { e.preventDefault(); generateAll(); });
+function setStatus(t, err, offerPrompt){
+  const s=$("#status"); s.textContent=t; s.classList.toggle("err", !!err);
+  if (offerPrompt && lastPrompt){
+    const b=document.createElement("button"); b.type="button"; b.className="btn small"; b.style.marginTop="6px"; b.textContent="複製 AI 提示詞";
+    b.onclick = e => copyText(lastPrompt, e.currentTarget, "已複製提示詞，貼到你慣用的 AI 工具即可");
+    if (!HOST && !IN_CLAUDE){ const k=document.createElement("button"); k.type="button"; k.className="btn small"; k.style.margin="6px 0 0 6px"; k.textContent="設定 API 金鑰"; k.onclick=openAiSheet; s.append(document.createElement("br"), b, k); }
+    else s.append(document.createElement("br"), b);
+  }
+}
+function setAI(){
+  $("#aiDot").classList.toggle("on", aiOn());
+  $("#aiLabel").textContent = HOST ? "AI 已連線・Claude" : AIC.key ? "AI 已連線・" + AIC.model.replace("claude-","").replace(/-(\d)-(\d)$/," $1.$2") : "AI 未連線・點此設定";
+}
+
+// ---------- 樣張 ----------
+function renderBoards(){ const box=$("#boards"); box.innerHTML=""; Object.keys(PLATFORMS).forEach(k => box.append(buildBoard(k))); drawAll(); Object.keys(PLATFORMS).forEach(updateMeta); }
+function renderBoard(k){ const old=document.getElementById("board-"+k); old.replaceWith(buildBoard(k)); draw(k); updateMeta(k); }
+function buildBoard(k){
+  const P = PLATFORMS[k], d = result[k];
+  const el = document.createElement("article"); el.className="board glass"; el.id="board-"+k;
+  el.innerHTML = `
+    <div class="board-head">
+      <div class="pf"><i style="background:${P.color}"></i>${P.name}<small>${P.note}</small></div>
+      <span class="badge ${source==="ai"?"ai":""}">${source==="ai"?"AI 生成":source==="local"?"範本產出":"範例內容"}</span>
+    </div>
+    <div class="canvas-box"><canvas id="cv-${k}" aria-label="${P.name} 圖卡預覽"></canvas></div>
+    <div class="board-body">
+      <div class="sizes" role="group" aria-label="圖片尺寸">${P.sizes.map((s,i)=>`<button type="button" class="chip" data-i="${i}" aria-pressed="${i===P.size}">${s[1]} ${s[0]}</button>`).join("")}</div>
+      <div class="mini">
+        <input type="text" id="hl-${k}" aria-label="圖卡大標" placeholder="圖卡大標">
+        <input type="text" id="sub-${k}" aria-label="圖卡副標" placeholder="圖卡副標">
+        <input type="text" id="pts-${k}" aria-label="清單重點，用／分隔" placeholder="清單重點，用／分隔">
+      </div>
+      <textarea class="caption" id="cap-${k}" aria-label="${P.name} 貼文文案"></textarea>
+      <input type="text" id="tag-${k}" aria-label="hashtag" placeholder="#標籤 用空白分隔">
+      <div class="meter" id="meter-${k}"></div>
+      <div class="flags" id="flags-${k}"></div>
+    </div>
+    <div class="board-foot">
+      <button type="button" class="btn small" data-act="copy">複製文案</button>
+      <button type="button" class="btn small" data-act="png">下載圖片</button>
+      <button type="button" class="btn small" data-act="regen">AI 換一版</button>
+      ${CAN_SHARE ? '<button type="button" class="btn small" data-act="share">分享到 App</button>' : ""}
+    </div>`;
+  el.querySelector("#hl-"+k).value = d.headline;
+  el.querySelector("#sub-"+k).value = d.sub;
+  el.querySelector("#pts-"+k).value = d.points.join("／");
+  el.querySelector("#cap-"+k).value = d.caption;
+  el.querySelector("#tag-"+k).value = d.hashtags.map(t=>"#"+t).join(" ");
+  el.querySelectorAll(".chip").forEach(c => c.onclick = () => { P.size=+c.dataset.i; el.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed", String(x===c))); draw(k); });
+  el.querySelector("#hl-"+k).oninput = e => { d.headline=e.target.value; draw(k); updateMeta(k); };
+  el.querySelector("#sub-"+k).oninput = e => { d.sub=e.target.value; draw(k); updateMeta(k); };
+  el.querySelector("#pts-"+k).oninput = e => { d.points=e.target.value.split(/[／/]/).map(s=>s.trim()).filter(Boolean).slice(0,3); draw(k); updateMeta(k); };
+  el.querySelector("#cap-"+k).oninput = e => { d.caption=e.target.value; updateMeta(k); };
+  el.querySelector("#tag-"+k).oninput = e => { d.hashtags=e.target.value.split(/\s+/).map(t=>t.replace(/^#+/,"")).filter(Boolean); updateMeta(k); };
+  el.querySelector('[data-act="copy"]').onclick = e => copyText(fullText(k), e.currentTarget);
+  el.querySelector('[data-act="png"]').onclick = () => savePNG(k);
+  el.querySelector('[data-act="regen"]').onclick = e => regenOne(k, e.currentTarget);
+  const sh = el.querySelector('[data-act="share"]'); if (sh) sh.onclick = () => sharePost(k);
+  return el;
+}
+function fullText(k){ const d=result[k]; const tags=d.hashtags.map(t=>"#"+t).join(" "); return d.caption + (tags ? "\n\n"+tags : ""); }
+function updateMeta(k){
+  const P=PLATFORMS[k], d=result[k]; const txt=fullText(k); const n=[...txt].length;
+  const m=document.getElementById("meter-"+k); if(!m) return;
+  const lim = P.limit ? `<span class="${n>P.limit?"over":""}"><b>${n}</b> / ${P.limit} 字</span>` : `<span><b>${n}</b> 字</span>`;
+  const first = [...(d.caption.split("\n")[0]||"")].length;
+  const hook = k==="ig" ? `<span>前 125 字預覽 ${n>125?"會被折疊":"完整顯示"}</span>` : k==="fb" ? `<span>首句 ${first} 字${first>40?"（建議再短一點）":""}</span>` : `<span>${d.caption.includes("？")||d.caption.includes("?")?"有互動提問 ✓":"建議結尾丟一個問題"}</span>`;
+  const tg = `<span class="${d.hashtags.length>P.tagMax?"over":""}">標籤 ${d.hashtags.length} / ${P.tagMax}</span>`;
+  m.innerHTML = lim + hook + tg;
+  const f=document.getElementById("flags-"+k); f.innerHTML="";
+  if (!brief.comply) return;
+  const all = [d.headline,d.sub,d.points.join(" "),txt].join(" ");
+  const hits = RISK.filter(([w]) => all.includes(w));
+  if (!hits.length){ f.innerHTML = `<div class="flag okf"><b>合規檢查</b>　未發現常見療效或誇大用語。上架前仍請依公司規範複核。</div>`; return; }
+  hits.forEach(([w,tip]) => { const x=document.createElement("div"); x.className="flag"; x.innerHTML=`<b>「${w}」</b>　${tip}`; f.append(x); });
+}
+
+// ---------- 圖卡繪製 ----------
+const FONT = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
+function tokens(t){ return String(t).match(/[A-Za-z0-9%+\-.,'’&@]+|\s+|./gsu) || []; }
+function wrap(ctx, text, maxW){
+  const lines=[]; let line="";
+  for (const tk of tokens(text)){
+    if (tk==="\n"){ lines.push(line); line=""; continue; }
+    const test=line+tk;
+    if (ctx.measureText(test).width>maxW && line.trim()){ lines.push(line.trimEnd()); line=tk.trimStart(); }
+    else line=test;
+  }
+  if (line.trim()) lines.push(line.trim());
+  return lines;
+}
+function fit(ctx, text, maxW, maxLines, start, min, weight){
+  let size=start, lines;
+  do { ctx.font=`${weight} ${size}px ${FONT}`; lines=wrap(ctx,text,maxW); size-=4; } while ((lines.length>maxLines) && size>=min);
+  return {size:size+4, lines};
+}
+function shade(hex, amt){
+  const n=parseInt(hex.slice(1),16); let r=n>>16, g=n>>8&255, b=n&255;
+  const f = v => Math.max(0,Math.min(255, Math.round(amt<0 ? v*(1+amt) : v+(255-v)*amt)));
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+}
+function lum(hex){ const n=parseInt(hex.slice(1),16); return (0.299*(n>>16)+0.587*(n>>8&255)+0.114*(n&255))/255; }
+function rr(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function coverImg(ctx, im, x, y, w, h){
+  const s=Math.max(w/im.width, h/im.height); const iw=im.width*s, ih=im.height*s;
+  ctx.drawImage(im, x+(w-iw)/2, y+(h-ih)/2, iw, ih);
+}
+function draw(k){
+  const cv=document.getElementById("cv-"+k); if(!cv) return;
+  const P=PLATFORMS[k], [, ,W,H]=P.sizes[P.size], d=result[k];
+  cv.width=W; cv.height=H; const ctx=cv.getContext("2d");
+  const color = brief.color || "#D2335C"; const darkOnColor = lum(color)>0.62;
+  const onC = darkOnColor ? "#14161C" : "#FFFFFF";
+  const pad = Math.round(W*0.075); const wide = W/H > 1.4;
+  const style = (brief.style==="photo" && !photo) ? "bold" : brief.style;
+  const brandName = brief.brand || "";
+  const cta = (brief.cta||"").slice(0,16);
+
+  if (style==="photo"){
+    coverImg(ctx, photo, 0, 0, W, H);
+    const g=ctx.createLinearGradient(0,H*0.35,0,H); g.addColorStop(0,"rgba(10,12,18,0)"); g.addColorStop(1,"rgba(10,12,18,.86)");
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    const maxW = wide ? W*0.62 : W-pad*2;
+    const hl = fit(ctx, d.headline||" ", maxW, 3, wide?84:104, 44, 900);
+    ctx.font=`500 ${Math.round(hl.size*0.4)}px ${FONT}`; const subL = d.sub ? wrap(ctx,d.sub,maxW).slice(0,2) : [];
+    const lh=hl.size*1.22, slh=hl.size*0.4*1.5;
+    let y = H - pad - (cta?hl.size*0.9:0) - subL.length*slh - hl.lines.length*lh;
+    ctx.fillStyle="#fff"; ctx.textBaseline="top"; ctx.font=`900 ${hl.size}px ${FONT}`;
+    hl.lines.forEach(l => { ctx.fillText(l,pad,y); y+=lh; });
+    ctx.fillStyle=color; ctx.fillRect(pad, y+6, hl.size*1.2, 8); y+=26;
+    ctx.fillStyle="rgba(255,255,255,.92)"; ctx.font=`500 ${Math.round(hl.size*0.4)}px ${FONT}`;
+    subL.forEach(l => { ctx.fillText(l,pad,y); y+=slh; });
+    if (cta) pill(ctx, cta, pad, y+12, Math.round(hl.size*0.34), color, onC);
+    if (brandName){ ctx.font=`700 ${Math.round(W*0.026)}px ${FONT}`; ctx.fillStyle="rgba(255,255,255,.95)"; ctx.textBaseline="top"; ctx.fillText(brandName, pad, pad*0.8); }
+    return;
+  }
+
+  if (style==="glass"){ drawGlass(ctx, W, H, d, color, wide, pad, brandName, cta); return; }
+
+  if (style==="list"){
+    ctx.fillStyle="#FBFAF8"; ctx.fillRect(0,0,W,H);
+    const band = wide ? W*0.36 : H*0.14;
+    ctx.fillStyle=color;
+    if (wide) ctx.fillRect(0,0,band,H); else ctx.fillRect(0,0,W,band);
+    // 色塊上的品牌名
+    ctx.fillStyle=onC; ctx.textBaseline="middle"; ctx.font=`900 ${Math.round(W*(wide?0.032:0.036))}px ${FONT}`;
+    if (wide){ ctx.save(); ctx.translate(band/2, H/2); const bl=wrap(ctx, brandName||PLATFORMS[k].name, band-pad); bl.slice(0,3).forEach((l,i,a)=>{ const w=ctx.measureText(l).width; ctx.fillText(l,-w/2,(i-(a.length-1)/2)*W*0.045); }); ctx.restore(); }
+    else ctx.fillText(brandName||"", pad, band/2);
+    const x0 = wide ? band+pad*0.8 : pad; const maxW = (wide ? W-band-pad*1.6 : W-pad*2);
+    let y = wide ? pad*0.9 : band+pad*0.8;
+    const hl = fit(ctx, d.headline||" ", maxW, 2, wide?64:92, 40, 900);
+    ctx.fillStyle="#15171D"; ctx.textBaseline="top"; ctx.font=`900 ${hl.size}px ${FONT}`;
+    hl.lines.forEach(l => { ctx.fillText(l,x0,y); y+=hl.size*1.2; });
+    if (d.sub){ ctx.font=`500 ${Math.round(hl.size*0.42)}px ${FONT}`; ctx.fillStyle="#5A5F6B"; wrap(ctx,d.sub,maxW).slice(0,2).forEach(l=>{ ctx.fillText(l,x0,y+6); y+=hl.size*0.62; }); }
+    y += hl.size*0.5;
+    const pts = d.points.length ? d.points : ["重點一","重點二","重點三"];
+    const avail = H - y - pad - (cta ? hl.size*0.9 : 0);
+    const rowH = Math.min(hl.size*(wide?1.3:1.9), avail/pts.length);
+    const ps = Math.round(Math.min(hl.size*0.6, rowH*0.42));
+    pts.forEach((p,i) => {
+      const cy = y + rowH*i + rowH/2; const r = ps*0.62;
+      ctx.fillStyle=color; ctx.beginPath(); ctx.arc(x0+r, cy, r, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle=onC; ctx.lineWidth=Math.max(3,r*0.22); ctx.lineCap="round"; ctx.lineJoin="round";
+      ctx.beginPath(); ctx.moveTo(x0+r*0.55, cy); ctx.lineTo(x0+r*0.9, cy+r*0.35); ctx.lineTo(x0+r*1.5, cy-r*0.35); ctx.stroke();
+      ctx.fillStyle="#15171D"; ctx.textBaseline="middle"; ctx.font=`700 ${ps}px ${FONT}`;
+      const t = wrap(ctx,p,maxW-r*2.8)[0]||""; ctx.fillText(t, x0+r*2.6, cy);
+      if (i<pts.length-1){ ctx.fillStyle="#E6E3DE"; ctx.fillRect(x0, y+rowH*(i+1), maxW, 2); }
+    });
+    if (cta){ const cs=Math.round(hl.size*(wide?0.34:0.4)); pill(ctx, cta, x0, H-pad-cs*2.1, cs, "#15171D", "#FFFFFF"); }
+    return;
+  }
+
+  // bold：大字主視覺
+  const g=ctx.createLinearGradient(0,0,W,H); g.addColorStop(0,shade(color,0.08)); g.addColorStop(1,shade(color,-0.22));
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  // 半透明大圓與點陣，增加層次
+  ctx.globalAlpha=0.14; ctx.fillStyle=onC; ctx.beginPath(); ctx.arc(W*0.92, H*0.12, Math.min(W,H)*0.42, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha=0.18; const step=Math.round(W*0.03);
+  for (let yy=H*0.62; yy<H*0.92; yy+=step) for (let xx=W*0.78; xx<W*0.96; xx+=step){ ctx.beginPath(); ctx.arc(xx,yy,step*0.12,0,Math.PI*2); ctx.fill(); }
+  ctx.globalAlpha=1;
+  if (photo && !wide){ // 有照片時放在右上的圓框
+    const r=Math.min(W,H)*0.2; ctx.save(); ctx.beginPath(); ctx.arc(W-pad-r, pad+r, r, 0, Math.PI*2); ctx.clip(); coverImg(ctx, photo, W-pad-2*r, pad, 2*r, 2*r); ctx.restore();
+    ctx.strokeStyle=onC; ctx.lineWidth=8; ctx.beginPath(); ctx.arc(W-pad-r, pad+r, r, 0, Math.PI*2); ctx.stroke();
+  }
+  ctx.textBaseline="top"; ctx.fillStyle=onC;
+  if (brandName){ ctx.font=`700 ${Math.round(W*(wide?0.022:0.03))}px ${FONT}`; ctx.fillText(brandName, pad, pad*0.8); }
+  const maxW = wide ? W*0.7 : W-pad*2;
+  const hl = fit(ctx, d.headline||" ", maxW, wide?2:3, wide?96:128, 48, 900);
+  ctx.font=`500 ${Math.round(hl.size*0.36)}px ${FONT}`; const subL = d.sub ? wrap(ctx,d.sub,maxW).slice(0,2) : [];
+  const lh=hl.size*1.18, slh=hl.size*0.36*1.55;
+  const block = hl.lines.length*lh + 30 + subL.length*slh;
+  let y = wide ? (H-block)/2 : Math.max(H*0.36, (H-block)/2);
+  ctx.font=`900 ${hl.size}px ${FONT}`; ctx.fillStyle=onC;
+  hl.lines.forEach(l => { ctx.fillText(l,pad,y); y+=lh; });
+  ctx.fillStyle = darkOnColor ? "#14161C" : "#FFE27A"; ctx.fillRect(pad, y+8, hl.size*1.4, 10); y+=34;
+  ctx.fillStyle=onC; ctx.globalAlpha=.92; ctx.font=`500 ${Math.round(hl.size*0.36)}px ${FONT}`;
+  subL.forEach(l => { ctx.fillText(l,pad,y); y+=slh; }); ctx.globalAlpha=1;
+  if (cta) pill(ctx, cta, pad, H-pad-Math.round(W*(wide?0.05:0.07)), Math.round(W*(wide?0.024:0.032)), onC, darkOnColor?"#FFFFFF":color);
+}
+function pill(ctx, text, x, y, size, bg, fg){
+  ctx.font=`700 ${size}px ${FONT}`; const w=ctx.measureText(text+"  →").width + size*1.6, h=size*2.1;
+  ctx.fillStyle=bg; rr(ctx,x,y,w,h,h/2); ctx.fill();
+  ctx.fillStyle=fg; ctx.textBaseline="middle"; ctx.fillText(text+"  →", x+size*0.8, y+h/2+1); ctx.textBaseline="top";
+}
+function drawAll(){ Object.keys(PLATFORMS).forEach(draw); }
+// 質感玻璃：腮紅漸層底、柔光、絲帶光線，中間一片香檳金邊的霧面玻璃面板
+function drawGlass(ctx, W, H, d, color, wide, pad, brandName, cta){
+  const deep = shade(color,-0.55), mid = shade(color,-0.25);
+  const g = ctx.createLinearGradient(0,0,W,H); g.addColorStop(0,shade(color,0.9)); g.addColorStop(.55,shade(color,0.78)); g.addColorStop(1,shade(color,0.6));
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  const glow = (x,y,r,a) => { const rg=ctx.createRadialGradient(x,y,0,x,y,r); rg.addColorStop(0,`rgba(255,255,255,${a})`); rg.addColorStop(1,"rgba(255,255,255,0)"); ctx.fillStyle=rg; ctx.fillRect(x-r,y-r,2*r,2*r); };
+  glow(W*0.85,H*0.08,Math.max(W,H)*0.45,.85); glow(W*0.1,H*0.95,Math.max(W,H)*0.35,.5);
+  ctx.save(); ctx.lineCap="round";
+  [[0.035,"rgba(255,255,255,.35)"],[0.012,shade(color,0.2)],[0.004,"rgba(255,255,255,.9)"]].forEach(([w,c],i) => {
+    ctx.strokeStyle=c; ctx.lineWidth=W*w; ctx.beginPath(); const o=i*W*0.004;
+    ctx.moveTo(-W*0.05, H*0.88+o); ctx.bezierCurveTo(W*0.3, H*0.7+o, W*0.55, H*1.02+o, W*1.05, H*0.74+o); ctx.stroke();
+  });
+  ctx.restore();
+  const m = Math.round(pad*0.62), px=m, py=m, pw=W-2*m, ph=H-2*m, rad=Math.min(W,H)*0.045;
+  ctx.save(); ctx.shadowColor="rgba(90,20,50,.18)"; ctx.shadowBlur=W*0.04; ctx.shadowOffsetY=W*0.012;
+  ctx.fillStyle="rgba(255,255,255,.52)"; rr(ctx,px,py,pw,ph,rad); ctx.fill(); ctx.restore();
+  const rim = ctx.createLinearGradient(px,py,px+pw,py+ph); rim.addColorStop(0,"#F6E7D3"); rim.addColorStop(.35,"#C49A6C"); rim.addColorStop(.6,"#F3E0C8"); rim.addColorStop(1,"#B98B5E");
+  ctx.strokeStyle=rim; ctx.lineWidth=Math.max(3,W*0.006); rr(ctx,px,py,pw,ph,rad); ctx.stroke();
+  const ip = Math.round(pad*0.55);
+  let x0 = px+ip, y = py+ip, maxW = pw-2*ip; const bottom = py+ph-ip;
+  if (photo){
+    let fx, fy, fw, fh;
+    if (wide){ fw=pw*0.42; fh=ph-2*ip; fx=px+pw-ip-fw; fy=py+ip; maxW = fx-x0-ip*0.8; }
+    else { fw=maxW; fh=(ph-2*ip)*0.42; fx=x0; fy=y; y += fh + ip*0.7; }
+    ctx.save(); rr(ctx,fx,fy,fw,fh,rad*0.7); ctx.clip(); coverImg(ctx,photo,fx,fy,fw,fh); ctx.restore();
+  }
+  ctx.textBaseline="top";
+  if (brandName){ ctx.fillStyle=mid; ctx.font=`700 ${Math.round(W*(wide?0.02:0.028))}px ${FONT}`; ctx.fillText(brandName, x0, y); y += W*(wide?0.042:0.058); }
+  const cs = Math.round(W*(wide?0.024:0.032)), ctaH = cta ? cs*2.1 + ip*0.5 : 0;
+  const hl = fit(ctx, d.headline||" ", maxW, photo&&!wide?2:3, wide?84:(photo?96:118), 40, 900);
+  ctx.fillStyle=deep; ctx.font=`900 ${hl.size}px ${FONT}`;
+  hl.lines.forEach(l => { ctx.fillText(l,x0,y); y+=hl.size*1.2; });
+  ctx.fillStyle="#C49A6C"; ctx.fillRect(x0, y+hl.size*0.12, hl.size*1.4, Math.max(4,hl.size*0.06)); y += hl.size*0.45;
+  const ss = Math.round(hl.size*0.38);
+  if (d.sub){ ctx.fillStyle=mid; ctx.font=`500 ${ss}px ${FONT}`; wrap(ctx,d.sub,maxW).slice(0,2).forEach(l=>{ ctx.fillText(l,x0,y); y+=ss*1.5; }); y += ss*0.4; }
+  const ps = Math.round(Math.min(ss*1.05, W*0.04));
+  for (const p of d.points){
+    if (y + ps*1.7 > bottom - ctaH) break;
+    const cy = y + ps*0.62, r = ps*0.28;
+    ctx.fillStyle="#C49A6C"; ctx.beginPath(); ctx.moveTo(x0+r,cy-r); ctx.lineTo(x0+2*r,cy); ctx.lineTo(x0+r,cy+r); ctx.lineTo(x0,cy); ctx.closePath(); ctx.fill();
+    ctx.fillStyle=deep; ctx.font=`700 ${ps}px ${FONT}`; ctx.fillText(wrap(ctx,p,maxW-ps*1.2)[0]||"", x0+ps*0.95, y);
+    y += ps*1.6;
+  }
+  if (cta) pill(ctx, cta, x0, bottom - cs*2.1, cs, deep, "#FFF7F9");
+}
+
+// ---------- 複製與下載 ----------
+async function copyText(t, btn, okMsg){
+  try{ await navigator.clipboard.writeText(t); toast(okMsg || "已複製文案與 hashtag"); }
+  catch(e){
+    const ta=document.createElement("textarea"); ta.value=t; ta.style.cssText="position:fixed;opacity:0"; document.body.append(ta); ta.select();
+    let ok=false; try{ ok=document.execCommand("copy"); }catch(_){}
+    ta.remove(); toast(ok ? (okMsg || "已複製文案與 hashtag") : "無法自動複製，請手動選取文字");
+  }
+}
+const IN_CLAUDE = !!window.claude;
+function fileName(k){ const P=PLATFORMS[k]; const [label]=P.sizes[P.size]; return `${(brief.brand||"post").replace(/[\\/:*?"<>|\s]+/g,"")}_${P.name}_${label.replace("×","x")}.png`; }
+// 手機上的 PWA：用系統分享把圖片＋文案直接送到 IG／Threads／FB App
+function sharePost(k){
+  const cv=document.getElementById("cv-"+k);
+  cv.toBlob(async blob => {
+    const file = new File([blob], fileName(k), { type:"image/png" });
+    const text = fullText(k);
+    try{ await navigator.clipboard.writeText(text); }catch(e){}
+    try{ await navigator.share({ files:[file], text }); toast("文案已複製，貼到貼文欄即可"); }
+    catch(e){ if (e && e.name!=="AbortError") toast("這台裝置不支援分享圖片，請改用下載"); }
+  }, "image/png");
+}
+const CAN_SHARE = !IN_CLAUDE && !!(navigator.canShare && (() => { try{ return navigator.canShare({ files:[new File([""], "a.png", {type:"image/png"})] }); }catch(e){ return false; } })());
+function savePNG(k){
+  const cv=document.getElementById("cv-"+k);
+  const name = fileName(k);
+  if (!downloads){
+    if (IN_CLAUDE){ toast("這裡無法直接下載：請在圖片上按右鍵（手機長按）另存"); return; }
+    cv.toBlob(blob => { const u=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=u; a.download=name; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u), 4000); toast("已下載 "+name); }, "image/png");
+    return;
+  }
+  cv.toBlob(async blob => {
+    try{ await downloads.save({filename:name, data:blob}); toast("已下載 "+name); }
+    catch(e){ if (e && e.code==="declined") return; toast(e && e.code==="rate_limited" ? "請稍等，下載視窗還開著" : "下載沒有成功，請在圖片上按右鍵另存"); }
+  }, "image/png");
+}
+let tt; function toast(t){ const el=$("#toast"); el.textContent=t; el.classList.add("show"); clearTimeout(tt); tt=setTimeout(()=>el.classList.remove("show"),2200); }
+
+// ---------- 啟動 ----------
+fillForm(); renderBoards();
+if (document.fonts && document.fonts.load){
+  Promise.all([document.fonts.load(`900 80px ${FONT}`,"三平台圖文"), document.fonts.load(`700 40px ${FONT}`,"三平台"), document.fonts.load(`500 40px ${FONT}`,"三平台")])
+    .then(drawAll).catch(()=>{});
+  document.fonts.ready.then(drawAll).catch(()=>{});
+}
+setAI();
+if (window.claude && claude.use){
+  $("#aiLabel").textContent = "正在連線 Claude…";
+  claude.use("sample").then(async s => {
+    HOST = s; setAI();
+    if (s){ try{ const lim = await s.limits(); imgOK = !!(lim && lim.images); }catch(e){ imgOK=false; } }
+  }).catch(()=>setAI());
+  claude.use("downloads").then(d => downloads = d).catch(()=>{});
+}
+if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !window.claude) navigator.serviceWorker.register("sw.js").catch(()=>{});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "id": "./",
+  "name": "三平台圖文工作室｜FB・IG・Threads 一次出稿",
+  "short_name": "三平台圖文",
+  "description": "填一份稿單，用 AI 同時產出 Facebook、Instagram、Threads 三平台的圖卡與貼文文案，可編修、複製、下載與分享。稿單與金鑰只存在你的裝置。",
+  "lang": "zh-Hant-TW",
+  "dir": "ltr",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#F6EAE9",
+  "theme_color": "#7A1F45",
+  "categories": ["business", "productivity", "social"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
