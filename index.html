@@ -276,7 +276,7 @@ const MODELS = ["claude-sonnet-5-5","claude-opus-5-5","claude-haiku-5-5"];
 const AIC = { key:"", model:MODELS[0] };
 try{ const c = JSON.parse(localStorage.getItem("sps-ai") || "{}"); AIC.key = c.key || ""; if (MODELS.includes(c.model)) AIC.model = c.model; }catch(e){}
 const saveAI = () => { try{ localStorage.setItem("sps-ai", JSON.stringify(AIC)); }catch(e){} };
-const aiOn = () => !!HOST || !!AIC.key;
+const aiOn = () => (!!HOST && !claudeOff) || !!AIC.key;
 async function callClaude(content, signal){
   const body = { model:AIC.model, max_tokens:8000, messages:[{role:"user", content}], output_config:{effort:"low"} };
   const headers = { "content-type":"application/json", "x-api-key":AIC.key, "anthropic-version":"2026-10-21", "anthropic-dangerous-direct-browser-access":"true" };
@@ -315,9 +315,21 @@ async function aiJson(prompt, { signal, withPhoto } = {}){
   const src = fence ? fence[1] : t.slice(t.indexOf("{"), t.lastIndexOf("}")+1);
   try{ return JSON.parse(src); }catch(e){ throw { code:"invalid_json" }; }
 }
+// 檢視者關掉了「允許使用 Claude」：打開這個頁面的權限面板讓他重新開啟，關閉後再讀一次狀態
+let PERMS = null, claudeOff = false;
+async function reopenClaude(){
+  if (!PERMS){ toast("請到這個頁面的「權限」選單，把 Claude 重新打開"); return; }
+  try{ await PERMS.manage(); }
+  catch(e){ toast("請到這個頁面的「權限」選單，把 Claude 重新打開"); return; }
+  const st = await PERMS.state("sample").catch(()=> "unavailable");
+  if (st === "granted" || st === "prompt"){
+    HOST = await claude.use("sample"); claudeOff = !HOST; setAI();
+    if (HOST){ try{ const lim = await HOST.limits(); imgOK = !!(lim && lim.images); }catch(e){ imgOK=false; } toast("Claude 已重新開啟，可以用 AI 生成了"); setStatus(""); }
+  } else { claudeOff = true; setAI(); toast("Claude 仍是關閉的，可在權限面板重新打開"); }
+}
 function openAiSheet(){
-  if (HOST){ toast("已使用你的 Claude 帳戶，不需要金鑰"); return; }
-  if (IN_CLAUDE){ toast("這個頁面目前無法使用 Claude，重新整理後允許使用即可"); return; }
+  if (HOST && !claudeOff){ toast("已使用你的 Claude 帳戶，不需要金鑰"); return; }
+  if (IN_CLAUDE){ reopenClaude(); return; }
   $("#aiKey").value = AIC.key; $("#aiModel").value = AIC.model; $("#aiTestMsg").textContent = ""; $("#aiSheet").hidden = false; $("#aiKey").focus();
 }
 $("#aiState").onclick = openAiSheet;
@@ -452,7 +464,7 @@ function clean(p){
     caption:s(p.caption), hashtags:(Array.isArray(p.hashtags)?p.hashtags:[]).map(t=>s(t).replace(/^#+/,"").replace(/\s+/g,"")).filter(Boolean) };
 }
 const ERR = {
-  not_granted:"你沒有允許這個頁面使用 Claude，已改用內建範本產出。", sampling_disabled:"這個帳號目前無法使用 Claude，已改用內建範本產出。",
+  not_granted:"Claude 目前是關閉的，已先用內建範本產出。按下方「重新開啟 Claude」即可恢復。", sampling_disabled:"這個帳號目前無法使用 Claude，已改用內建範本產出。",
   rate_limited:"使用次數太密集，請稍等一下再按一次。", session_expired:"登入已過期，請重新登入 claude.ai 後再試。",
   refused:"Claude 婉拒了這份稿單，請調整主題或用字再試。", invalid_json:"AI 回覆格式不完整，請再按一次生成。",
   image_rejected:"照片格式或大小不支援，請換一張 JPG／PNG。", cancelled:"已停止。",
@@ -472,8 +484,8 @@ async function generateAll(){
     result = next; source = "ai"; renderBoards(); setStatus("完成。可直接在樣張上修改文字，圖卡會同步更新。");
   }catch(e){
     const code = e && e.code;
-    if (code==="not_granted" || code==="sampling_disabled"){ HOST=null; setAI(); result = makeLocal(brief); source="local"; renderBoards(); }
-    setStatus(ERR[code] || (code==="api_error" ? "請求被拒絕：" + (e.message||"請稍後再試") : "連線中斷，請再按一次生成。"), code!=="cancelled", !HOST);
+    if (code==="not_granted" || code==="sampling_disabled"){ if (code==="not_granted") claudeOff=true; else HOST=null; setAI(); result = makeLocal(brief); source="local"; renderBoards(); }
+    setStatus(ERR[code] || (code==="api_error" ? "請求被拒絕：" + (e.message||"請稍後再試") : "連線中斷，請再按一次生成。"), code!=="cancelled", !aiOn());
   }finally{ busy(false); }
 }
 async function regenOne(key, btn){
@@ -483,7 +495,7 @@ async function regenOne(key, btn){
   try{
     const data = await aiJson(promptOne(key));
     result[key] = clean(data); source="ai"; renderBoard(key); toast(PLATFORMS[key].name+" 已換一版");
-  }catch(e){ toast(ERR[e && e.code] || "沒有成功，請再試一次"); }
+  }catch(e){ if (e && e.code==="not_granted"){ claudeOff=true; setAI(); } toast(ERR[e && e.code] || "沒有成功，請再試一次"); }
   finally{ btn.disabled=false; btn.textContent=old; }
 }
 function busy(on){ $("#genBtn").disabled=on; $("#stopBtn").hidden=!on; $("#genBtn").textContent = on ? "生成中…" : "用 AI 生成三平台圖文"; }
@@ -495,12 +507,13 @@ function setStatus(t, err, offerPrompt){
     const b=document.createElement("button"); b.type="button"; b.className="btn small"; b.style.marginTop="6px"; b.textContent="複製 AI 提示詞";
     b.onclick = e => copyText(lastPrompt, e.currentTarget, "已複製提示詞，貼到你慣用的 AI 工具即可");
     if (!HOST && !IN_CLAUDE){ const k=document.createElement("button"); k.type="button"; k.className="btn small"; k.style.margin="6px 0 0 6px"; k.textContent="設定 API 金鑰"; k.onclick=openAiSheet; s.append(document.createElement("br"), b, k); }
+    else if (IN_CLAUDE && (claudeOff || !HOST)){ const k=document.createElement("button"); k.type="button"; k.className="btn small"; k.style.margin="6px 0 0 6px"; k.textContent="重新開啟 Claude"; k.onclick=reopenClaude; s.append(document.createElement("br"), b, k); }
     else s.append(document.createElement("br"), b);
   }
 }
 function setAI(){
   $("#aiDot").classList.toggle("on", aiOn());
-  $("#aiLabel").textContent = HOST ? "AI 已連線・Claude" : AIC.key ? "AI 已連線・" + AIC.model.replace("claude-","").replace(/-(\d)-(\d)$/," $1.$2") : "AI 未連線・點此設定";
+  $("#aiLabel").textContent = (IN_CLAUDE && claudeOff) ? "Claude 已關閉・點此重新開啟" : HOST ? "AI 已連線・Claude" : AIC.key ? "AI 已連線・" + AIC.model.replace("claude-","").replace(/-(\d)-(\d)$/," $1.$2") : "AI 未連線・點此設定";
 }
 
 // ---------- 樣張 ----------
@@ -789,6 +802,10 @@ if (document.fonts && document.fonts.load){
 setAI();
 if (window.claude && claude.use){
   $("#aiLabel").textContent = "正在連線 Claude…";
+  claude.use("permissions").then(async p => {
+    PERMS = p;
+    if (p && (await p.state("sample").catch(()=>null)) === "denied"){ claudeOff = true; setAI(); }
+  }).catch(()=>{});
   claude.use("sample").then(async s => {
     HOST = s; setAI();
     if (s){ try{ const lim = await s.limits(); imgOK = !!(lim && lim.images); }catch(e){ imgOK=false; } }

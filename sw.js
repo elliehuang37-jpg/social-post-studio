@@ -1,6 +1,6 @@
 // 離線快取。VERSION 由 scripts/stamp-sw.js 依檔案內容自動更新，內容一改就會換新快取。
 // 同一個 github.io 網域上還有其他 App 的快取，這裡只清 sps- 開頭的舊快取。
-const VERSION = 'v-8f590cc7ed';
+const VERSION = 'v-444e3c9fdc';
 const CACHE = 'sps-' + VERSION;
 const SHELL = [
   './',
