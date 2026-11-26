@@ -73,7 +73,7 @@ const MOCK = `(()=>{const real=window.fetch;window.fetch=async(u,o)=>{if(!String
   await snapEl('06-board-fb.png', '#board-fb');
   await snapEl('07-board-threads.png', '#board-th');
   for (const k of ['fb', 'ig', 'th']) await saveCanvas(`card-${k}-glass.png`, k);
-  for (const s of ['bold', 'list', 'photo']) { await setStyle(s); await sleep(400); await saveCanvas(`style-${s}.png`, 'ig'); }
+  for (const s of ['bold', 'list', 'photo', 'sale', 'festive', 'magazine', 'chat', 'minimal']) { await setStyle(s); await sleep(400); await saveCanvas(`style-${s}.png`, 'ig'); }
   await setStyle('glass'); await sleep(300); await saveCanvas('style-glass.png', 'ig');
   // 合規提醒：在 FB 文案加入疑慮字詞
   await ev(`(()=>{const t=document.querySelector('#cap-fb');t.value=t.value.replace('從表面到深層一起補水','保證 100% 根治乾燥');t.dispatchEvent(new Event('input'));return 1})()`);
